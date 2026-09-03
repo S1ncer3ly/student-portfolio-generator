@@ -20,43 +20,38 @@ def remove_photo_placeholders(slide):
 
 
 def generate_presentations(root_path, folder_id, api_key, drive_service, template_path, dataframe, mapping, global_theme):
-    # Output folder: use root_path if available, else local directory
-    output_folder = os.path.join(root_path, "Finished_PPTs") if root_path else "Finished_PPTs"
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder)
+    # 1. Determine Output Destination
+    if drive_service:
+        # Google Drive OAuth Mode: Upload to a folder named "Finished_PPTs" inside the root_folder_id
+        from core.utils.google_drive import create_drive_folder, upload_drive_file
+
+        output_folder_id = None
+        try:
+            # Search for existing "Finished_PPTs" folder in the root folder
+            query = f"name = 'Finished_PPTs' and '{folder_id}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+            results = drive_service.files().list(q=query, fields="files(id)", supportsAllDrives=True, includeItemsFromAllDrives=True).execute()
+            files = results.get('files', [])
+            if files:
+                output_folder_id = files[0]['id']
+            else:
+                # Create the folder if it doesn't exist
+                output_folder_id = create_drive_folder(drive_service, "Finished_PPTs", folder_id)
+        except Exception as e:
+            st.error(f"Error setting up output folder on Drive: {e}")
+            return
+
+        if not output_folder_id:
+            st.error("Could not create or find Finished_PPTs folder on Drive.")
+            return
+    else:
+        # Local Mode
+        output_folder = os.path.join(root_path, "Finished_PPTs") if root_path else "Finished_PPTs"
+        if not os.path.exists(output_folder):
+            os.makedirs(output_folder)
 
     progress_bar = st.progress(0)
     status_text = st.empty()
-
-    # Log area with scrollview via CSS
-    st.markdown(
-        """
-        <style>
-        .scroll-container {
-            max-height: 400px;
-            overflow-y: auto;
-            border: 1px solid #ddd;
-            padding: 10px;
-            border-radius: 5px;
-            background-color: #f9f9f9;
-            font-family: monospace;
-            font-size: 12px;
-            color: #333;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
-    with st.expander("Detailed Generation Log", expanded=True):
-        log_placeholder = st.empty()
-        all_logs = []
-
-    def write_log(message):
-        all_logs.append(message)
-        # Join logs with newlines and wrap in the scrollable div
-        log_content = f"<div class='scroll-container'>" + "<br>".join(all_logs) + "</div>"
-        log_placeholder.markdown(log_content, unsafe_allow_html=True)
+    log_area = st.expander("Detailed Generation Log", expanded=True)
 
     # Pre-fetch file list if using Google Drive
     files_map = {}
@@ -70,7 +65,6 @@ def generate_presentations(root_path, folder_id, api_key, drive_service, templat
     files_map_lower = {k.lower(): v for k, v in files_map.items()} if files_map else {}
 
     for index, row in dataframe.iterrows():
-        # STOP CHECK
         if st.session_state.get("stop_generation", False):
             st.warning("🛑 Generation stopped by user.")
             break
@@ -84,16 +78,10 @@ def generate_presentations(root_path, folder_id, api_key, drive_service, templat
 
         try:
             presentation = Presentation(template_path)
-            replacements = {
-                "{{NAME}}": name,
-                "{{CLASS}}": student_class,
-                "{{SECTION}}": section,
-                "{{THEME}}": theme,
-            }
+            replacements = {"{{NAME}}": name, "{{CLASS}}": student_class, "{{SECTION}}": section, "{{THEME}}": theme}
             replace_text_recursive(presentation.slides[1].shapes, replacements)
 
             for week in WEEKS:
-                # STOP CHECK inside week loop
                 if st.session_state.get("stop_generation", False):
                     break
 
@@ -112,7 +100,7 @@ def generate_presentations(root_path, folder_id, api_key, drive_service, templat
 
                     if file_id:
                         temp_heic = f"temp_{index}_{week}.heic"
-                        write_log(f"⏳ {name} W{week}: Downloading (OAuth)...")
+                        log_area.write(f"⏳ {name} W{week}: Downloading (OAuth)...")
                         import io
                         from googleapiclient.http import MediaIoBaseDownload
                         try:
@@ -124,7 +112,7 @@ def generate_presentations(root_path, folder_id, api_key, drive_service, templat
                                     _, done = downloader.next_chunk()
                             photo_path = temp_heic
                         except Exception as e:
-                            write_log(f"❌ {name} W{week}: OAuth Download failed ({e})")
+                            log_area.write(f"❌ {name} W{week}: OAuth Download failed ({e})")
 
                 elif folder_id and api_key:
                     file_id = None
@@ -135,41 +123,57 @@ def generate_presentations(root_path, folder_id, api_key, drive_service, templat
 
                     if file_id:
                         temp_heic = f"temp_{index}_{week}.heic"
-                        write_log(f"⏳ {name} W{week}: Downloading (API Key)...")
+                        log_area.write(f"⏳ {name} W{week}: Downloading (API Key)...")
                         success, error = download_public_file(file_id, api_key, temp_heic)
                         if success:
                             photo_path = temp_heic
                         else:
-                            write_log(f"❌ {name} W{week}: Download failed ({error})")
+                            log_area.write(f"❌ {name} W{week}: Download failed ({error})")
 
                 elif root_path:
                     local_path = os.path.join(root_path, f"Week {week}", expected_filename)
                     if os.path.exists(local_path):
                         photo_path = local_path
                     else:
-                        write_log(f"❌ {name} W{week}: Not found locally.")
+                        log_area.write(f"❌ {name} W{week}: Not found locally.")
 
                 if photo_path:
                     temp_jpg = f"temp_{index}_{week}.jpg"
-                    write_log(f"⚙️ {name} W{week}: Converting HEIC to JPG...")
+                    log_area.write(f"⚙️ {name} W{week}: Converting HEIC to JPG...")
                     if convert_heic_to_jpg(photo_path, temp_jpg):
                         left, top, width, height = COORD_MAP[slide_index]
                         slide.shapes.add_picture(temp_jpg, left, top, width, height)
-                        write_log(f"✅ {name} W{week}: Added to slide.")
+                        log_area.write(f"✅ {name} W{week}: Added to slide.")
                     else:
-                        write_log(f"❌ {name} W{week}: Conversion failed.")
+                        log_area.write(f"❌ {name} W{week}: Conversion failed.")
 
-                    # Cleanup
                     if os.path.exists(temp_jpg):
                         os.remove(temp_jpg)
                     if photo_path.startswith("temp_") and os.path.exists(photo_path):
                         os.remove(photo_path)
 
-            save_path = os.path.join(output_folder, f"{name.replace(' ', '_')}.pptx")
-            presentation.save(save_path)
+            # SAVE AND UPLOAD
+            filename = f"{name.replace(' ', '_')}.pptx"
+            temp_pptx = f"temp_{index}.pptx"
+            presentation.save(temp_pptx)
+
+            if drive_service:
+                log_area.write(f"📤 {name}: Uploading to Drive folder 'Finished_PPTs'...")
+                from core.utils.google_drive import upload_drive_file
+                success, err = upload_drive_file(drive_service, temp_pptx, output_folder_id, filename)
+                if success:
+                    log_area.write(f"✅ {name}: Uploaded successfully.")
+                else:
+                    log_area.write(f"❌ {name}: Upload failed ({err})")
+                if os.path.exists(temp_pptx):
+                    os.remove(temp_pptx)
+            else:
+                save_path = os.path.join(output_folder, filename)
+                os.rename(temp_pptx, save_path)
+
         except Exception as error:
             st.error(f"Error for {name}: {error}")
-            write_log(f"💥 {name}: Critical Error - {error}")
+            log_area.write(f"💥 {name}: Critical Error - {error}")
         progress_bar.progress((index + 1) / len(dataframe))
 
     if not st.session_state.get("stop_generation", False):
@@ -181,7 +185,6 @@ def generate_presentations(root_path, folder_id, api_key, drive_service, templat
 def render_generation(root_path, folder_id, api_key, drive_service, uploaded_template, uploaded_data, dataframe, mapping, global_theme):
     st.subheader("Step 3: Generate Presentations")
 
-    # Initialize session state for stop button
     if "stop_generation" not in st.session_state:
         st.session_state.stop_generation = False
 
@@ -196,13 +199,10 @@ def render_generation(root_path, folder_id, api_key, drive_service, uploaded_tem
             st.rerun()
 
     if generate_btn:
-        # Reset stop flag before starting
         st.session_state.stop_generation = False
-
         if not uploaded_template or not uploaded_data or (not root_path and not folder_id) or dataframe is None:
             st.error("Missing requirements!")
             return
-
         if folder_id and not api_key and not drive_service:
             st.error("Please provide your Google API Key or authenticate via OAuth!")
             return

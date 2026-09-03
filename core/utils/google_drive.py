@@ -5,9 +5,10 @@ import streamlit as st
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
 
 # If modifying these scopes, delete the file token.json.
-SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
+SCOPES = ['https://www.googleapis.com/auth/drive'] # Changed to 'drive' (full access) to allow uploads
 
 def get_drive_service(credentials_json_content=None):
     """
@@ -27,7 +28,6 @@ def get_drive_service(credentials_json_content=None):
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            # Handle provided content or look for local file
             if credentials_json_content:
                 with open('credentials.json', 'w') as f:
                     f.write(credentials_json_content)
@@ -35,21 +35,14 @@ def get_drive_service(credentials_json_content=None):
                 raise FileNotFoundError("credentials.json not found in project root.")
 
             flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
-            # For Streamlit, we use run_local_server which opens a browser window
             creds = flow.run_local_server(port=0)
 
-        # Save the credentials for the next run
         with open(token_path, 'wb') as token:
             pickle.dump(creds, token)
 
     return build('drive', 'v3', credentials=creds)
 
 def list_public_folder_files(folder_id, api_key):
-    """
-    Lists all files in a public Google Drive folder.
-    Supports Shared Drives.
-    Returns a dictionary of {filename: file_id}.
-    """
     url = f"https://www.googleapis.com/drive/v3/files?q='{folder_id}' in parents&key={api_key}&fields=files(id,name)&supportsAllDrives=true&includeItemsFromAllDrives=true"
     try:
         response = requests.get(url)
@@ -61,38 +54,22 @@ def list_public_folder_files(folder_id, api_key):
         return {}
 
 def get_all_photos_from_weeks(root_folder_id, api_key):
-    """
-    Finds 'Week 1', 'Week 2', 'Week 3', 'Week 4' folders inside the root folder
-    and collects all files from them into a single map.
-    Supports Shared Drives.
-    """
     all_files_map = {}
-
-    # 1. Find the sub-folders first
     url = f"https://www.googleapis.com/drive/v3/files?q='{root_folder_id}' in parents and mimeType='application/vnd.google-apps.folder'&key={api_key}&fields=files(id,name)&supportsAllDrives=true&includeItemsFromAllDrives=true"
     try:
         response = requests.get(url)
         response.raise_for_status()
         folders = response.json().get('files', [])
-
-        # 2. For each folder, if it matches "Week X", list its files
         for folder in folders:
-            folder_name = folder['name']
-            if folder_name.lower().startswith("week "):
+            if folder['name'].lower().startswith("week "):
                 folder_id = folder['id']
                 files_in_folder = list_public_folder_files(folder_id, api_key)
                 all_files_map.update(files_in_folder)
-
     except Exception as e:
         st.error(f"Error scanning Google Drive sub-folders: {e}")
-
     return all_files_map
 
 def download_public_file(file_id, api_key, destination_path):
-    """
-    Downloads a public file from Google Drive.
-    Supports Shared Drives.
-    """
     url = f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media&key={api_key}"
     try:
         response = requests.get(url, stream=True)
@@ -105,10 +82,6 @@ def download_public_file(file_id, api_key, destination_path):
         return False, str(e)
 
 def list_drive_folder_files(service, folder_id):
-    """
-    Lists all files in a Google Drive folder using the authenticated service.
-    Returns a dictionary of {filename: file_id}.
-    """
     query = f"'{folder_id}' in parents"
     try:
         results = service.files().list(
@@ -124,9 +97,6 @@ def list_drive_folder_files(service, folder_id):
         return {}
 
 def get_all_photos_from_weeks_oauth(service, root_folder_id):
-    """
-    Finds 'Week 1', 'Week 2', 'Week 3', 'Week 4' folders and collects files.
-    """
     all_files_map = {}
     query = f"'{root_folder_id}' in parents and mimeType='application/vnd.google-apps.folder'"
     try:
@@ -137,7 +107,6 @@ def get_all_photos_from_weeks_oauth(service, root_folder_id):
             includeItemsFromAllDrives=True
         ).execute()
         folders = results.get('files', [])
-
         for folder in folders:
             if folder['name'].lower().startswith("week "):
                 folder_id = folder['id']
@@ -145,23 +114,56 @@ def get_all_photos_from_weeks_oauth(service, root_folder_id):
                 all_files_map.update(files_in_folder)
     except Exception as e:
         st.error(f"Error scanning Drive sub-folders: {e}")
-
     return all_files_map
 
 def download_drive_file(service, file_id, destination_path):
-    """
-    Downloads a file from Google Drive using the authenticated service.
-    """
     import io
     from googleapiclient.http import MediaIoBaseDownload
-
     try:
         request = service.files().get_media(fileId=file_id)
         fh = io.FileIO(destination_path, 'wb')
         downloader = MediaIoBaseDownload(fh, request)
         done = False
-        while done is False:
+        while not done:
             status, done = downloader.next_chunk()
         return True, None
+    except Exception as e:
+        return False, str(e)
+
+def create_drive_folder(service, folder_name, parent_id=None):
+    """
+    Creates a folder in Google Drive and returns its ID.
+    """
+    file_metadata = {
+        'name': folder_name,
+        'mimeType': 'application/vnd.google-apps.folder'
+    }
+    if parent_id:
+        file_metadata['parents'] = [parent_id]
+
+    try:
+        folder = service.files().create(body=file_metadata, fields='id', supportsAllDrives=True).execute()
+        return folder.get('id')
+    except Exception as e:
+        st.error(f"Error creating folder {folder_name}: {e}")
+        return None
+
+def upload_drive_file(service, local_path, folder_id, file_name):
+    """
+    Uploads a file to a specific Google Drive folder.
+    """
+    file_metadata = {
+        'name': file_name,
+        'parents': [folder_id]
+    }
+    try:
+        media = MediaFileUpload(local_path, resumable=True)
+        file = service.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields='id',
+            supportsAllDrives=True
+        ).execute()
+        return True, file.get('id')
     except Exception as e:
         return False, str(e)
