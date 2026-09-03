@@ -33,8 +33,25 @@ def scan_student_photos(root_path, dataframe, name_column):
 
 def render_photo_check(root_path, uploaded_data, dataframe, name_column):
     st.subheader("Step 2: Verify Photos")
+
+    if "photo_check_results" not in st.session_state:
+        st.session_state.photo_check_results = None
+
     if st.button("🔍 Scan Folders for Photos"):
         if not root_path or uploaded_data is None or dataframe is None:
             st.warning("Please provide the Root Folder Path and upload a valid Student List first!")
         else:
-            st.table(pd.DataFrame(scan_student_photos(root_path, dataframe, name_column)))
+            st.session_state.photo_check_results = scan_student_photos(root_path, dataframe, name_column)
+
+    if st.session_state.photo_check_results is not None:
+        results_df = pd.DataFrame(st.session_state.photo_check_results)
+        st.table(results_df)
+
+        # Download button
+        csv = results_df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Download Pre-Flight Report (CSV)",
+            data=csv,
+            file_name="pre_flight_check_report.csv",
+            mime="text/csv",
+        )

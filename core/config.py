@@ -1,4 +1,4 @@
-PAGE_TITLE = "Student Portfolio Generator v2.0"
+PAGE_TITLE = "Student Portfolio Generator"
 PAGE_ICON = "🎓"
 GLOBAL_THEME_DEFAULT = "Heroes, Role Models & Changemakers"
 WEEKS = range(1, 5)
