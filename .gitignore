@@ -12,3 +12,10 @@ __pycache__/
 .venv/
 venv/
 *.py[cod]
+credentials.json
+token.pickle
+streamlit.log
+temp_*.jpg
+temp_*.heic
+temp_template.pptx
+Finished_PPTs/
