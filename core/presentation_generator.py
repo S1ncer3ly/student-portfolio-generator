@@ -19,9 +19,13 @@ def remove_photo_placeholders(slide):
             element.getparent().remove(element)
 
 
-def generate_presentations(root_path, folder_id, api_key, drive_service, template_path, dataframe, mapping, global_theme):
+def generate_presentations(root_path, folder_id, api_key, drive_service, save_destination, template_path, dataframe, mapping, global_theme):
     # 1. Determine Output Destination
-    if drive_service:
+    if save_destination == "Google Drive":
+        if not drive_service:
+            st.error("Drive service not authenticated. Please connect to Google Drive first.")
+            return
+
         # Google Drive OAuth Mode: Upload to a folder named "Finished_PPTs" inside the root_folder_id
         from core.utils.google_drive import create_drive_folder, upload_drive_file
 
@@ -157,7 +161,7 @@ def generate_presentations(root_path, folder_id, api_key, drive_service, templat
             temp_pptx = f"temp_{index}.pptx"
             presentation.save(temp_pptx)
 
-            if drive_service:
+            if save_destination == "Google Drive" and drive_service:
                 log_area.write(f"📤 {name}: Uploading to Drive folder 'Finished_PPTs'...")
                 from core.utils.google_drive import upload_drive_file
                 success, err = upload_drive_file(drive_service, temp_pptx, output_folder_id, filename)
@@ -168,7 +172,14 @@ def generate_presentations(root_path, folder_id, api_key, drive_service, templat
                 if os.path.exists(temp_pptx):
                     os.remove(temp_pptx)
             else:
+                # Save locally if chosen or if Drive upload is not possible
+                if 'output_folder' not in locals():
+                    output_folder = os.path.join(root_path, "Finished_PPTs") if root_path else "Finished_PPTs"
+                    if not os.path.exists(output_folder): os.makedirs(output_folder)
+
                 save_path = os.path.join(output_folder, filename)
+                if os.path.exists(save_path):
+                    os.remove(save_path)
                 os.rename(temp_pptx, save_path)
 
         except Exception as error:
@@ -182,7 +193,7 @@ def generate_presentations(root_path, folder_id, api_key, drive_service, templat
         status_text.info("Generation process was stopped.")
 
 
-def render_generation(root_path, folder_id, api_key, drive_service, uploaded_template, uploaded_data, dataframe, mapping, global_theme):
+def render_generation(root_path, folder_id, api_key, drive_service, save_destination, uploaded_template, uploaded_data, dataframe, mapping, global_theme):
     st.subheader("Step 3: Generate Presentations")
 
     if "stop_generation" not in st.session_state:
@@ -210,4 +221,4 @@ def render_generation(root_path, folder_id, api_key, drive_service, uploaded_tem
         template_path = "temp_template.pptx"
         with open(template_path, "wb") as template_file:
             template_file.write(uploaded_template.getbuffer())
-        generate_presentations(root_path, folder_id, api_key, drive_service, template_path, dataframe, mapping, global_theme)
+        generate_presentations(root_path, folder_id, api_key, drive_service, save_destination, template_path, dataframe, mapping, global_theme)
