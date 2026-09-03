@@ -5,6 +5,10 @@ Week 3/
 Week 4/
 *.pptx
 !Video Template hackathon 3.pptx
+temp_template.pptx
 temp_*.jpg
 __pycache__/
 .DS_Store
+.venv/
+venv/
+*.py[cod]
