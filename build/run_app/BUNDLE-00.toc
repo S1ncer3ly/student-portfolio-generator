@@ -1,3 +1,0 @@
-([('run_app',
-   '/Users/s1ncer3ly/Desktop/student_portfolio_generator/dist/run_app',
-   'EXECUTABLE')],)
