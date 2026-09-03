@@ -1,0 +1,11 @@
+PAGE_TITLE = "Student Portfolio Generator v2.0"
+PAGE_ICON = "🎓"
+GLOBAL_THEME_DEFAULT = "Heroes, Role Models & Changemakers"
+WEEKS = range(1, 5)
+
+COORD_MAP = {
+    3: (1603584, 3260950, 9994200, 5740500),
+    4: (1603584, 3260950, 9994200, 5740500),
+    5: (1603584, 3260950, 9994200, 5740500),
+    6: (1603584, 3260950, 9994200, 5740500),
+}

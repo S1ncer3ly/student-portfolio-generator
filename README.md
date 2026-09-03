@@ -20,6 +20,15 @@ A Streamlit application that creates individualized student portfolio presentati
 
 Photos should follow the naming convention `STUDENT NAME_W1.heic` through `STUDENT NAME_W4.heic`.
 
+## Project structure
+
+- `app.py`: Streamlit entrypoint and page layout.
+- `data_import.py`: Student file upload and column mapping.
+- `photo_checker.py`: Weekly photo verification.
+- `presentation_generator.py`: PowerPoint generation workflow.
+- `portfolio_helpers.py`: HEIC conversion and template text replacement.
+- `config.py`: Shared settings and slide coordinates.
+
 ## Run locally
 
 ```bash
