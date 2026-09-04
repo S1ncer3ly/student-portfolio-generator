@@ -2,8 +2,8 @@ import os
 import pandas as pd
 import streamlit as st
 from pptx import Presentation
-from concurrent.futures import ProcessPoolExecutor, as_completed
-import multiprocessing
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
 from core.config import COORD_MAP
 from core.utils.portfolio_helpers import convert_heic_to_jpg, replace_text_recursive
@@ -195,8 +195,7 @@ def generate_presentations(root_path, folder_id, api_key, drive_service, save_de
     files_map_lower = {k.lower(): v for k, v in files_map.items()} if files_map else {}
 
     # Parallel Execution Setup
-    manager = multiprocessing.Manager()
-    stop_event = manager.Event()
+    stop_event = threading.Event()
 
     # Collect tasks
     tasks = []
@@ -210,7 +209,7 @@ def generate_presentations(root_path, folder_id, api_key, drive_service, save_de
     completed_count = 0
     total_students = len(dataframe)
 
-    with ProcessPoolExecutor() as executor:
+    with ThreadPoolExecutor() as executor:
         # Map tasks to executor
         future_to_student = {executor.submit(process_single_student, *task): task[1][mapping["name"]] for task in tasks}
 
