@@ -1,15 +1,19 @@
 import os
-
 import pandas as pd
 import streamlit as st
 from pptx import Presentation
+from concurrent.futures import ProcessPoolExecutor, as_completed
+import multiprocessing
 
 from core.config import COORD_MAP, WEEKS
 from core.utils.portfolio_helpers import convert_heic_to_jpg, replace_text_recursive
 from core.utils.google_drive import (
     get_all_photos_from_weeks,
     get_all_photos_from_weeks_oauth,
-    download_public_file
+    download_public_file,
+    get_drive_service,
+    create_drive_folder,
+    upload_drive_file
 )
 
 def remove_photo_placeholders(slide):
@@ -18,46 +22,161 @@ def remove_photo_placeholders(slide):
             element = shape._element
             element.getparent().remove(element)
 
+def process_single_student(index, row, mapping, root_path, folder_id, api_key, save_destination, global_theme, template_path, files_map, files_map_lower, stop_event):
+    """
+    Worker function to generate a single student's presentation.
+    Returns a dictionary with the result and logs.
+    """
+    logs = []
+    name = str(row[mapping["name"]]).strip()
 
-def generate_presentations(root_path, folder_id, api_key, drive_service, save_destination, template_path, dataframe, mapping, global_theme):
-    # 1. Determine Output Destination
-    if save_destination == "Google Drive":
-        if not drive_service:
-            st.error("Drive service not authenticated. Please connect to Google Drive first.")
-            return
+    try:
+        if stop_event.is_set():
+            return {"name": name, "success": False, "logs": ["🛑 Stopped by user."], "error": "Stopped"}
 
-        # Google Drive OAuth Mode: Upload to a folder named "Finished_PPTs" inside the root_folder_id
-        from core.utils.google_drive import create_drive_folder, upload_drive_file
+        # Setup Drive Service if needed
+        drive_service = None
+        if folder_id:
+            # If we have a folder_id and no API key, we assume OAuth is needed
+            if not api_key:
+                try:
+                    drive_service = get_drive_service()
+                except Exception as e:
+                    return {"name": name, "success": False, "logs": [f"❌ Drive Auth failed: {e}"], "error": str(e)}
 
-        output_folder_id = None
-        try:
-            # Search for existing "Finished_PPTs" folder in the root folder
+        # Template and text replacement
+        presentation = Presentation(template_path)
+        student_class = str(row[mapping["class"]])
+        section = str(row[mapping["section"]])
+        theme_column = mapping["theme"]
+        theme = str(row[theme_column]) if theme_column and pd.notna(row[theme_column]) else global_theme
+
+        replacements = {"{{NAME}}": name, "{{CLASS}}": student_class, "{{SECTION}}": section, "{{THEME}}": theme}
+        replace_text_recursive(presentation.slides[1].shapes, replacements)
+
+        for week in WEEKS:
+            if stop_event.is_set():
+                return {"name": name, "success": False, "logs": ["🛑 Stopped by user."], "error": "Stopped"}
+
+            slide_index = week + 2
+            slide = presentation.slides[slide_index - 1]
+            remove_photo_placeholders(slide)
+            expected_filename = f"{name}_W{week}.heic"
+
+            photo_path = None
+            if drive_service:
+                file_id = files_map.get(expected_filename) or files_map_lower.get(expected_filename.lower())
+                if file_id:
+                    temp_heic = f"temp_{index}_{week}.heic"
+                    logs.append(f"⏳ {name} W{week}: Downloading (OAuth)...")
+                    import io
+                    from googleapiclient.http import MediaIoBaseDownload
+                    try:
+                        request = drive_service.files().get_media(fileId=file_id)
+                        with io.FileIO(temp_heic, 'wb') as fh:
+                            downloader = MediaIoBaseDownload(fh, request)
+                            done = False
+                            while not done:
+                                _, done = downloader.next_chunk()
+                        photo_path = temp_heic
+                    except Exception as e:
+                        logs.append(f"❌ {name} W{week}: OAuth Download failed ({e})")
+
+            elif folder_id and api_key:
+                file_id = files_map.get(expected_filename) or files_map_lower.get(expected_filename.lower())
+                if file_id:
+                    temp_heic = f"temp_{index}_{week}.heic"
+                    logs.append(f"⏳ {name} W{week}: Downloading (API Key)...")
+                    success, error = download_public_file(file_id, api_key, temp_heic)
+                    if success:
+                        photo_path = temp_heic
+                    else:
+                        logs.append(f"❌ {name} W{week}: Download failed ({error})")
+
+            elif root_path:
+                local_path = os.path.join(root_path, f"Week {week}", expected_filename)
+                if os.path.exists(local_path):
+                    photo_path = local_path
+                else:
+                    logs.append(f"❌ {name} W{week}: Not found locally.")
+
+            if photo_path:
+                temp_jpg = f"temp_{index}_{week}.jpg"
+                logs.append(f"⚙️ {name} W{week}: Converting HEIC to JPG...")
+                if convert_heic_to_jpg(photo_path, temp_jpg):
+                    left, top, width, height = COORD_MAP[slide_index]
+                    slide.shapes.add_picture(temp_jpg, left, top, width, height)
+                    logs.append(f"✅ {name} W{week}: Added to slide.")
+                else:
+                    logs.append(f"❌ {name} W{week}: Conversion failed.")
+
+                if os.path.exists(temp_jpg):
+                    os.remove(temp_jpg)
+                if photo_path.startswith("temp_") and os.path.exists(photo_path):
+                    os.remove(photo_path)
+
+        # SAVE AND UPLOAD
+        filename = f"{name.replace(' ', '_')}.pptx"
+        temp_pptx = f"temp_{index}.pptx"
+        presentation.save(temp_pptx)
+
+        if save_destination == "Google Drive":
+            if not drive_service:
+                drive_service = get_drive_service()
+
+            logs.append(f"📤 {name}: Uploading to Drive...")
             query = f"name = 'Finished_PPTs' and '{folder_id}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
             results = drive_service.files().list(q=query, fields="files(id)", supportsAllDrives=True, includeItemsFromAllDrives=True).execute()
             files = results.get('files', [])
+
             if files:
                 output_folder_id = files[0]['id']
             else:
-                # Create the folder if it doesn't exist
                 output_folder_id = create_drive_folder(drive_service, "Finished_PPTs", folder_id)
-        except Exception as e:
-            st.error(f"Error setting up output folder on Drive: {e}")
-            return
 
-        if not output_folder_id:
-            st.error("Could not create or find Finished_PPTs folder on Drive.")
-            return
-    else:
-        # Local Mode
+            if output_folder_id:
+                success, err = upload_drive_file(drive_service, temp_pptx, output_folder_id, filename)
+                if success:
+                    logs.append(f"✅ {name}: Uploaded successfully.")
+                else:
+                    logs.append(f"❌ {name}: Upload failed ({err})")
+            else:
+                logs.append(f"❌ {name}: Could not find or create output folder.")
+
+            if os.path.exists(temp_pptx):
+                os.remove(temp_pptx)
+        else:
+            output_folder = os.path.join(root_path, "Finished_PPTs") if root_path else "Finished_PPTs"
+            if not os.path.exists(output_folder):
+                os.makedirs(output_folder, exist_ok=True)
+
+            save_path = os.path.join(output_folder, filename)
+            if os.path.exists(save_path):
+                os.remove(save_path)
+            os.rename(temp_pptx, save_path)
+            logs.append(f"✅ {name}: Saved locally.")
+
+        return {"name": name, "success": True, "logs": logs, "error": None}
+
+    except Exception as error:
+        return {"name": name, "success": False, "logs": logs + [f"💥 Critical Error - {error}"], "error": str(error)}
+
+
+def generate_presentations(root_path, folder_id, api_key, drive_service, save_destination, template_path, dataframe, mapping, global_theme):
+    # 1. Determine Output Destination (Local Only for initialization)
+    if save_destination != "Google Drive":
         output_folder = os.path.join(root_path, "Finished_PPTs") if root_path else "Finished_PPTs"
         if not os.path.exists(output_folder):
-            os.makedirs(output_folder)
+            os.makedirs(output_folder, exist_ok=True)
+    elif not drive_service:
+        st.error("Drive service not authenticated. Please connect to Google Drive first.")
+        return
 
     progress_bar = st.progress(0)
     status_text = st.empty()
     log_area = st.expander("Detailed Generation Log", expanded=True)
 
-    # Pre-fetch file list if using Google Drive
+    # Pre-fetch file list
     files_map = {}
     if drive_service:
         st.info("Scanning Google Drive (OAuth) sub-folders for photos...")
@@ -68,127 +187,50 @@ def generate_presentations(root_path, folder_id, api_key, drive_service, save_de
 
     files_map_lower = {k.lower(): v for k, v in files_map.items()} if files_map else {}
 
-    for index, row in dataframe.iterrows():
-        if st.session_state.get("stop_generation", False):
-            st.warning("🛑 Generation stopped by user.")
-            break
+    # Parallel Execution Setup
+    manager = multiprocessing.Manager()
+    stop_event = manager.Event()
 
-        name = str(row[mapping["name"]]).strip()
-        student_class = str(row[mapping["class"]])
-        section = str(row[mapping["section"]])
-        theme_column = mapping["theme"]
-        theme = str(row[theme_column]) if theme_column and pd.notna(row[theme_column]) else global_theme
-        status_text.text(f"Processing {index + 1}/{len(dataframe)}: {name}...")
+    # Collect tasks
+    tasks = []
+    for index, row in dataframe.iterrows():
+        tasks.append((
+            index, row, mapping, root_path, folder_id, api_key,
+            save_destination, global_theme, template_path,
+            files_map, files_map_lower, stop_event
+        ))
+
+    completed_count = 0
+    total_students = len(dataframe)
+
+    with ProcessPoolExecutor() as executor:
+        # Map tasks to executor
+        future_to_student = {executor.submit(process_single_student, *task): task[1][mapping["name"]] for task in tasks}
 
         try:
-            presentation = Presentation(template_path)
-            replacements = {"{{NAME}}": name, "{{CLASS}}": student_class, "{{SECTION}}": section, "{{THEME}}": theme}
-            replace_text_recursive(presentation.slides[1].shapes, replacements)
+            for future in as_completed(future_to_student):
+                student_name = future_to_student[future]
+                result = future.result()
 
-            for week in WEEKS:
+                completed_count += 1
+                status_text.text(f"Processed {completed_count}/{total_students}: {result['name']}...")
+
+                for log in result['logs']:
+                    log_area.write(log)
+
+                if not result['success']:
+                    st.error(f"Error for {result['name']}: {result['error']}")
+
+                progress_bar.progress(completed_count / total_students)
+
+                # Check if user clicked STOP in the main thread
                 if st.session_state.get("stop_generation", False):
-                    break
-
-                slide_index = week + 2
-                slide = presentation.slides[slide_index - 1]
-                remove_photo_placeholders(slide)
-                expected_filename = f"{name}_W{week}.heic"
-
-                photo_path = None
-                if drive_service:
-                    file_id = None
-                    if expected_filename in files_map:
-                        file_id = files_map[expected_filename]
-                    elif expected_filename.lower() in files_map_lower:
-                        file_id = files_map_lower[expected_filename.lower()]
-
-                    if file_id:
-                        temp_heic = f"temp_{index}_{week}.heic"
-                        log_area.write(f"⏳ {name} W{week}: Downloading (OAuth)...")
-                        import io
-                        from googleapiclient.http import MediaIoBaseDownload
-                        try:
-                            request = drive_service.files().get_media(fileId=file_id)
-                            with io.FileIO(temp_heic, 'wb') as fh:
-                                downloader = MediaIoBaseDownload(fh, request)
-                                done = False
-                                while not done:
-                                    _, done = downloader.next_chunk()
-                            photo_path = temp_heic
-                        except Exception as e:
-                            log_area.write(f"❌ {name} W{week}: OAuth Download failed ({e})")
-
-                elif folder_id and api_key:
-                    file_id = None
-                    if expected_filename in files_map:
-                        file_id = files_map[expected_filename]
-                    elif expected_filename.lower() in files_map_lower:
-                        file_id = files_map_lower[expected_filename.lower()]
-
-                    if file_id:
-                        temp_heic = f"temp_{index}_{week}.heic"
-                        log_area.write(f"⏳ {name} W{week}: Downloading (API Key)...")
-                        success, error = download_public_file(file_id, api_key, temp_heic)
-                        if success:
-                            photo_path = temp_heic
-                        else:
-                            log_area.write(f"❌ {name} W{week}: Download failed ({error})")
-
-                elif root_path:
-                    local_path = os.path.join(root_path, f"Week {week}", expected_filename)
-                    if os.path.exists(local_path):
-                        photo_path = local_path
-                    else:
-                        log_area.write(f"❌ {name} W{week}: Not found locally.")
-
-                if photo_path:
-                    temp_jpg = f"temp_{index}_{week}.jpg"
-                    log_area.write(f"⚙️ {name} W{week}: Converting HEIC to JPG...")
-                    if convert_heic_to_jpg(photo_path, temp_jpg):
-                        left, top, width, height = COORD_MAP[slide_index]
-                        slide.shapes.add_picture(temp_jpg, left, top, width, height)
-                        log_area.write(f"✅ {name} W{week}: Added to slide.")
-                    else:
-                        log_area.write(f"❌ {name} W{week}: Conversion failed.")
-
-                    if os.path.exists(temp_jpg):
-                        os.remove(temp_jpg)
-                    if photo_path.startswith("temp_") and os.path.exists(photo_path):
-                        os.remove(photo_path)
-
-            # SAVE AND UPLOAD
-            filename = f"{name.replace(' ', '_')}.pptx"
-            temp_pptx = f"temp_{index}.pptx"
-            presentation.save(temp_pptx)
-
-            if save_destination == "Google Drive" and drive_service:
-                log_area.write(f"📤 {name}: Uploading to Drive folder 'Finished_PPTs'...")
-                from core.utils.google_drive import upload_drive_file
-                success, err = upload_drive_file(drive_service, temp_pptx, output_folder_id, filename)
-                if success:
-                    log_area.write(f"✅ {name}: Uploaded successfully.")
-                else:
-                    log_area.write(f"❌ {name}: Upload failed ({err})")
-                if os.path.exists(temp_pptx):
-                    os.remove(temp_pptx)
-            else:
-                # Save locally if chosen or if Drive upload is not possible
-                if 'output_folder' not in locals():
-                    output_folder = os.path.join(root_path, "Finished_PPTs") if root_path else "Finished_PPTs"
-                    if not os.path.exists(output_folder): os.makedirs(output_folder)
-
-                save_path = os.path.join(output_folder, filename)
-                if os.path.exists(save_path):
-                    os.remove(save_path)
-                os.rename(temp_pptx, save_path)
-
-        except Exception as error:
-            st.error(f"Error for {name}: {error}")
-            log_area.write(f"💥 {name}: Critical Error - {error}")
-        progress_bar.progress((index + 1) / len(dataframe))
+                    stop_event.set()
+        except Exception as e:
+            st.error(f"Parallel execution error: {e}")
 
     if not st.session_state.get("stop_generation", False):
-        status_text.success(f"🎉 Done! {len(dataframe)} presentations created.")
+        status_text.success(f"🎉 Done! {total_students} presentations created.")
     else:
         status_text.info("Generation process was stopped.")
 
