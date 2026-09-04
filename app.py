@@ -40,15 +40,17 @@ def render_sidebar():
                 st.session_state.drive_service = None
 
             if st.button("Connect to Google Drive"):
-                if os.path.exists("credentials.json"):
+                if os.path.exists("credentials.json") or "google_auth" in st.secrets:
                     try:
                         from core.utils.google_drive import get_drive_service
-                        st.session_state.drive_service = get_drive_service(None)
+                        # Pass secrets if available, otherwise let it look for credentials.json
+                        client_config = st.secrets.get("google_auth")
+                        st.session_state.drive_service = get_drive_service(client_config)
                         st.success("Connected successfully!")
                     except Exception as e:
                         st.error(f"Connection failed: {e}")
                 else:
-                    st.error("Please upload `credentials.json` first.")
+                    st.error("Please upload `credentials.json` or set `google_auth` secrets in Streamlit Cloud.")
 
             drive_service = st.session_state.drive_service
 

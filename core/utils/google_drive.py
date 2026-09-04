@@ -10,10 +10,11 @@ from googleapiclient.http import MediaFileUpload
 # If modifying these scopes, delete the file token.json.
 SCOPES = ['https://www.googleapis.com/auth/drive'] # Changed to 'drive' (full access) to allow uploads
 
-def get_drive_service(credentials_json_content=None):
+def get_drive_service(client_config=None):
     """
     Authenticates the user and returns a Google Drive service object.
-    If credentials_json_content is None, it looks for 'credentials.json' on disk.
+    If client_config is provided (as a dict), it uses that.
+    Otherwise, it looks for 'credentials.json' on disk.
     """
     creds = None
     token_path = 'token.pickle'
@@ -28,13 +29,17 @@ def get_drive_service(credentials_json_content=None):
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            if credentials_json_content:
-                with open('credentials.json', 'w') as f:
-                    f.write(credentials_json_content)
-            elif not os.path.exists('credentials.json'):
-                raise FileNotFoundError("credentials.json not found in project root.")
+            if client_config:
+                # Use the config dict directly from secrets
+                flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
+            elif os.path.exists('credentials.json'):
+                # Fallback to local file
+                flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+            else:
+                raise FileNotFoundError("Google credentials not found. Please upload credentials.json or set st.secrets.")
 
-            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+            # IMPORTANT: run_local_server only works on local machines.
+            # For cloud deployment, you would need a different flow (e.g. Service Account).
             creds = flow.run_local_server(port=0)
 
         with open(token_path, 'wb') as token:
