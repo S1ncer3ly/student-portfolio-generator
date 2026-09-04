@@ -22,7 +22,7 @@ def remove_photo_placeholders(slide):
             element = shape._element
             element.getparent().remove(element)
 
-def process_single_student(index, row, mapping, root_path, folder_id, api_key, save_destination, global_theme, template_path, files_map, files_map_lower, stop_event, num_weeks):
+def process_single_student(index, row, mapping, root_path, folder_id, api_key, save_destination, global_theme, template_path, files_map, files_map_lower, stop_event, num_weeks, client_config):
     """
     Worker function to generate a single student's presentation.
     Returns a dictionary with the result and logs.
@@ -37,10 +37,10 @@ def process_single_student(index, row, mapping, root_path, folder_id, api_key, s
         # Setup Drive Service if needed
         drive_service = None
         if folder_id:
-            # If we have a folder_id and no API key, we assume OAuth is needed
+            # If we have a folder_id and no API key, we assume OAuth or Service Account is needed
             if not api_key:
                 try:
-                    drive_service = get_drive_service()
+                    drive_service = get_drive_service(client_config)
                 except Exception as e:
                     return {"name": name, "success": False, "logs": [f"❌ Drive Auth failed: {e}"], "error": str(e)}
 
@@ -122,7 +122,7 @@ def process_single_student(index, row, mapping, root_path, folder_id, api_key, s
 
         if save_destination == "Google Drive":
             if not drive_service:
-                drive_service = get_drive_service()
+                drive_service = get_drive_service(client_config)
 
             logs.append(f"📤 {name}: Uploading to Drive...")
             query = f"name = 'Finished_PPTs' and '{folder_id}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
@@ -172,6 +172,13 @@ def generate_presentations(root_path, folder_id, api_key, drive_service, save_de
         st.error("Drive service not authenticated. Please connect to Google Drive first.")
         return
 
+    # Get client config for parallel workers (since st.secrets isn't available in subprocesses)
+    client_config = {}
+    try:
+        client_config = st.secrets.get("google_auth", {})
+    except Exception:
+        pass
+
     progress_bar = st.progress(0)
     status_text = st.empty()
     log_area = st.expander("Detailed Generation Log", expanded=True)
@@ -197,7 +204,7 @@ def generate_presentations(root_path, folder_id, api_key, drive_service, save_de
         tasks.append((
             index, row, mapping, root_path, folder_id, api_key,
             save_destination, global_theme, template_path,
-            files_map, files_map_lower, stop_event, num_weeks
+            files_map, files_map_lower, stop_event, num_weeks, client_config
         ))
 
     completed_count = 0
