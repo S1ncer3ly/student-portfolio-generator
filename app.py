@@ -11,7 +11,7 @@ def render_sidebar():
     with st.sidebar:
         st.header("⚙️ Global Settings")
 
-        source_type = st.radio("Photo Source", ["Local Folder", "Google Drive (OAuth)"], index=0)
+        source_type = st.radio("Photo Source", ["Local Folder", "Google Drive"], index=0)
 
         if source_type == "Local Folder":
             root_path = st.text_input("Root Photo Folder Path", placeholder="/Users/name/Desktop/Grade 1")
@@ -61,7 +61,7 @@ def render_sidebar():
                     except Exception as e:
                         st.error(f"Connection failed: {e}")
                 else:
-                    st.error("Please upload `credentials.json` or set `google_auth` secrets in Streamlit Cloud.")
+                    st.error("Please upload `credentials.json` or set `google_auth` secrets (Service Account) in Streamlit Cloud.")
 
             drive_service = st.session_state.drive_service
 

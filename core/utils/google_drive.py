@@ -4,6 +4,7 @@ import requests
 import streamlit as st
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
+from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
@@ -14,36 +15,56 @@ def get_drive_service(client_config=None):
     """
     Authenticates the user and returns a Google Drive service object.
     If client_config is provided (as a dict), it uses that.
-    Otherwise, it looks for 'credentials.json' on disk.
+    Otherwise, it looks for 'google_auth' in st.secrets or 'credentials.json' on disk.
     """
     creds = None
     token_path = 'token.pickle'
 
-    # 1. Try loading existing token
+    # 1. Resolve configuration
+    if client_config is None:
+        # Try Streamlit secrets first
+        try:
+            client_config = st.secrets.get("google_auth")
+        except Exception:
+            client_config = None
+
+    # 2. Try loading existing token for OAuth (if not a service account)
     if os.path.exists(token_path):
         with open(token_path, 'rb') as token:
             creds = pickle.load(token)
 
-    # 2. If no valid credentials, let the user log in
+    # 3. Authenticate
     if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
+        # Check if it's a Service Account (has client_email)
+        if client_config and "client_email" in client_config:
+            try:
+                creds = service_account.Credentials.from_service_account_info(
+                    client_config, scopes=SCOPES
+                )
+            except Exception as e:
+                raise ValueError(f"Failed to authenticate with Service Account: {e}")
+
+        # Otherwise, try OAuth flow
         else:
-            if client_config:
-                # Use the config dict directly from secrets
-                flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
-            elif os.path.exists('credentials.json'):
-                # Fallback to local file
-                flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+            if creds and creds.expired and creds.refresh_token:
+                creds.refresh(Request())
             else:
-                raise FileNotFoundError("Google credentials not found. Please upload credentials.json or set st.secrets.")
+                if client_config:
+                    # Use the config dict directly from secrets or params
+                    flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
+                elif os.path.exists('credentials.json'):
+                    # Fallback to local file
+                    flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+                else:
+                    raise FileNotFoundError("Google credentials not found. Please upload credentials.json or set st.secrets['google_auth'].")
 
-            # IMPORTANT: run_local_server only works on local machines.
-            # For cloud deployment, you would need a different flow (e.g. Service Account).
-            creds = flow.run_local_server(port=0)
+                # IMPORTANT: run_local_server only works on local machines.
+                creds = flow.run_local_server(port=0)
 
-        with open(token_path, 'wb') as token:
-            pickle.dump(creds, token)
+        # Save token for OAuth (Service Accounts don't need token.pickle)
+        if not (client_config and "client_email" in client_config):
+            with open(token_path, 'wb') as token:
+                pickle.dump(creds, token)
 
     return build('drive', 'v3', credentials=creds)
 

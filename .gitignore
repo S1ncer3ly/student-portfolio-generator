@@ -26,6 +26,7 @@ ENV/
 credentials.json
 token.pickle
 .env
+secrets.toml
 
 # Logs and OS
 streamlit.log
