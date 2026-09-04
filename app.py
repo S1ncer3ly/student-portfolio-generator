@@ -64,7 +64,7 @@ def render_sidebar():
 
 def main():
     st.set_page_config(page_title=PAGE_TITLE, page_icon=PAGE_ICON, layout="wide")
-    st.title("🎓 Student Portfolio Generator v2.0")
+    st.title("🎓 Student Portfolio Generator")
     st.success("🚀 FIXED COORDINATE MODE ACTIVE - Photos will now stay in place!")
     st.markdown("Automate your student presentations. **Strict Naming Mode Enabled.**")
 

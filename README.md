@@ -31,7 +31,9 @@ Photos should follow the naming convention `STUDENT NAME_W1.heic` through `STUDE
 
 ## Run locally
 
+You can install the required dependencies using the `requirements.txt` file:
+
 ```bash
-pip install streamlit pandas python-pptx pillow pillow-heif openpyxl
+pip install -r requirements.txt
 streamlit run app.py
 ```
