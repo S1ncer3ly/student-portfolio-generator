@@ -3,10 +3,9 @@ import os
 import pandas as pd
 import streamlit as st
 
-from core.config import WEEKS
 from core.utils.google_drive import get_all_photos_from_weeks, get_all_photos_from_weeks_oauth
 
-def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe, name_column):
+def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe, name_column, num_weeks):
     results = []
 
     # Case 1: Google Drive OAuth
@@ -45,9 +44,12 @@ def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe,
     if 'files_map' in locals() and files_map is not None:
         for _, row in dataframe.iterrows():
             name = str(row[name_column]).strip()
-            status = {"Student": name, "Week 1": "❌", "Week 2": "❌", "Week 3": "❌", "Week 4": "❌", "Overall": "🔴"}
+            status = {"Student": name}
+            status.update({f"Week {w}": "❌" for w in range(1, num_weeks + 1)})
+            status["Overall"] = "🔴"
+
             all_found = True
-            for week in WEEKS:
+            for week in range(1, num_weeks + 1):
                 expected_filename = f"{name}_W{week}.heic"
                 if expected_filename in files_map:
                     status[f"Week {week}"] = "✅"
@@ -61,9 +63,13 @@ def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe,
     if root_path:
         for _, row in dataframe.iterrows():
             name = str(row[name_column]).strip()
-            status = {"Student": name, "Week 1": "❌", "Week 2": "❌", "Week 3": "❌", "Week 4": "❌", "Overall": "🔴"}
+
+            status = {"Student": name}
+            status.update({f"Week {w}": "❌" for w in range(1, num_weeks + 1)})
+            status["Overall"] = "🔴"
+
             all_found = True
-            for week in WEEKS:
+            for week in range(1, num_weeks + 1):
                 expected_filename = f"{name}_W{week}.heic"
                 folder = os.path.join(root_path, f"Week {week}")
                 if os.path.exists(folder) and expected_filename in os.listdir(folder):
@@ -76,7 +82,7 @@ def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe,
 
     return []
 
-def render_photo_check(root_path, folder_id, api_key, drive_service, uploaded_data, dataframe, name_column):
+def render_photo_check(root_path, folder_id, api_key, drive_service, uploaded_data, dataframe, name_column, num_weeks):
     st.subheader("Step 2: Verify Photos")
 
     if "photo_check_results" not in st.session_state:
@@ -88,7 +94,7 @@ def render_photo_check(root_path, folder_id, api_key, drive_service, uploaded_da
         elif folder_id and not api_key and not drive_service:
             st.warning("Please provide your Google API Key or authenticate via OAuth!")
         else:
-            st.session_state.photo_check_results = scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe, name_column)
+            st.session_state.photo_check_results = scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe, name_column, num_weeks)
 
     if st.session_state.photo_check_results is not None:
         results_df = pd.DataFrame(st.session_state.photo_check_results)

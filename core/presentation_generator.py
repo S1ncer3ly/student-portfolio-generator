@@ -5,7 +5,7 @@ from pptx import Presentation
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import multiprocessing
 
-from core.config import COORD_MAP, WEEKS
+from core.config import COORD_MAP
 from core.utils.portfolio_helpers import convert_heic_to_jpg, replace_text_recursive
 from core.utils.google_drive import (
     get_all_photos_from_weeks,
@@ -22,7 +22,7 @@ def remove_photo_placeholders(slide):
             element = shape._element
             element.getparent().remove(element)
 
-def process_single_student(index, row, mapping, root_path, folder_id, api_key, save_destination, global_theme, template_path, files_map, files_map_lower, stop_event):
+def process_single_student(index, row, mapping, root_path, folder_id, api_key, save_destination, global_theme, template_path, files_map, files_map_lower, stop_event, num_weeks):
     """
     Worker function to generate a single student's presentation.
     Returns a dictionary with the result and logs.
@@ -54,7 +54,7 @@ def process_single_student(index, row, mapping, root_path, folder_id, api_key, s
         replacements = {"{{NAME}}": name, "{{CLASS}}": student_class, "{{SECTION}}": section, "{{THEME}}": theme}
         replace_text_recursive(presentation.slides[1].shapes, replacements)
 
-        for week in WEEKS:
+        for week in range(1, num_weeks + 1):
             if stop_event.is_set():
                 return {"name": name, "success": False, "logs": ["🛑 Stopped by user."], "error": "Stopped"}
 
@@ -162,7 +162,7 @@ def process_single_student(index, row, mapping, root_path, folder_id, api_key, s
         return {"name": name, "success": False, "logs": logs + [f"💥 Critical Error - {error}"], "error": str(error)}
 
 
-def generate_presentations(root_path, folder_id, api_key, drive_service, save_destination, template_path, dataframe, mapping, global_theme):
+def generate_presentations(root_path, folder_id, api_key, drive_service, save_destination, template_path, dataframe, mapping, global_theme, num_weeks):
     # 1. Determine Output Destination (Local Only for initialization)
     if save_destination != "Google Drive":
         output_folder = os.path.join(root_path, "Finished_PPTs") if root_path else "Finished_PPTs"
@@ -197,7 +197,7 @@ def generate_presentations(root_path, folder_id, api_key, drive_service, save_de
         tasks.append((
             index, row, mapping, root_path, folder_id, api_key,
             save_destination, global_theme, template_path,
-            files_map, files_map_lower, stop_event
+            files_map, files_map_lower, stop_event, num_weeks
         ))
 
     completed_count = 0
@@ -235,7 +235,7 @@ def generate_presentations(root_path, folder_id, api_key, drive_service, save_de
         status_text.info("Generation process was stopped.")
 
 
-def render_generation(root_path, folder_id, api_key, drive_service, save_destination, uploaded_template, uploaded_data, dataframe, mapping, global_theme):
+def render_generation(root_path, folder_id, api_key, drive_service, save_destination, uploaded_template, uploaded_data, dataframe, mapping, global_theme, num_weeks):
     st.subheader("Step 3: Generate Presentations")
 
     if "stop_generation" not in st.session_state:
@@ -263,4 +263,4 @@ def render_generation(root_path, folder_id, api_key, drive_service, save_destina
         template_path = "temp_template.pptx"
         with open(template_path, "wb") as template_file:
             template_file.write(uploaded_template.getbuffer())
-        generate_presentations(root_path, folder_id, api_key, drive_service, save_destination, template_path, dataframe, mapping, global_theme)
+        generate_presentations(root_path, folder_id, api_key, drive_service, save_destination, template_path, dataframe, mapping, global_theme, num_weeks)

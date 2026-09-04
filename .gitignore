@@ -1,21 +1,37 @@
+# Project folders
 Finished_PPTs/
 Week 1/
 Week 2/
 Week 3/
 Week 4/
+Week 5/
+build/
+
+# Templates and Generated files
 *.pptx
 !Video Template hackathon 3.pptx
-temp_template.pptx
-temp_*.jpg
-__pycache__/
-.DS_Store
-.venv/
-venv/
-*.py[cod]
-credentials.json
-token.pickle
-streamlit.log
+temp_*.pptx
 temp_*.jpg
 temp_*.heic
-temp_template.pptx
-Finished_PPTs/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+
+# Secrets and Config
+credentials.json
+token.pickle
+.env
+
+# Logs and OS
+streamlit.log
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
