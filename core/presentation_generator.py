@@ -286,11 +286,24 @@ def render_generation(root_path, folder_id, api_key, drive_service, save_destina
 
     if generate_btn:
         st.session_state.stop_generation = False
-        if not uploaded_template or not uploaded_data or (not root_path and not folder_id) or dataframe is None:
-            st.error("Missing requirements!")
+
+        # Detailed Validation
+        missing = []
+        if not uploaded_template:
+            missing.append("PPTX Template")
+        if not uploaded_data:
+            missing.append("Student List (CSV/Excel)")
+        if dataframe is None:
+            missing.append("Processed Student Data")
+        if not root_path and not folder_id:
+            missing.append("Photo Source (Local Path or Drive ID)")
+
+        if missing:
+            st.error(f"❌ Missing requirements: {', '.join(missing)}")
             return
+
         if folder_id and not api_key and not drive_service:
-            st.error("Please provide your Google API Key or authenticate via OAuth!")
+            st.error("❌ Please provide your Google API Key or authenticate via OAuth!")
             return
 
         template_path = "temp_template.pptx"
