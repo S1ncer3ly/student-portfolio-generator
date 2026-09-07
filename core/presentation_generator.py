@@ -61,54 +61,81 @@ def process_single_student(index, row, mapping, root_path, folder_id, api_key, s
             slide_index = week + 2
             slide = presentation.slides[slide_index - 1]
             remove_photo_placeholders(slide)
-            expected_filename = f"{name}_W{week}.heic"
+
+            # Find the first available supported extension
+            photo_filename = None
+            for ext in ['.heic', '.jpg', '.jpeg', '.png']:
+                expected_filename = f"{name}_W{week}{ext}"
+                if drive_service:
+                    if files_map.get(expected_filename) or files_map_lower.get(expected_filename.lower()):
+                        photo_filename = expected_filename
+                        break
+                elif folder_id and api_key:
+                    if files_map.get(expected_filename) or files_map_lower.get(expected_filename.lower()):
+                        photo_filename = expected_filename
+                        break
+                elif root_path:
+                    local_path = os.path.join(root_path, f"Week {week}", expected_filename)
+                    if os.path.exists(local_path):
+                        photo_filename = expected_filename
+                        break
 
             photo_path = None
-            if drive_service:
-                file_id = files_map.get(expected_filename) or files_map_lower.get(expected_filename.lower())
-                if file_id:
-                    temp_heic = f"temp_{index}_{week}.heic"
+            if photo_filename:
+                if drive_service:
+                    file_id = files_map.get(photo_filename) or files_map_lower.get(photo_filename.lower())
+                    temp_file = f"temp_{index}_{week}_{photo_filename}"
                     logs.append(f"⏳ {name} W{week}: Downloading (OAuth)...")
                     import io
                     from googleapiclient.http import MediaIoBaseDownload
                     try:
                         request = drive_service.files().get_media(fileId=file_id)
-                        with io.FileIO(temp_heic, 'wb') as fh:
+                        with io.FileIO(temp_file, 'wb') as fh:
                             downloader = MediaIoBaseDownload(fh, request)
                             done = False
                             while not done:
                                 _, done = downloader.next_chunk()
-                        photo_path = temp_heic
+                        photo_path = temp_file
                     except Exception as e:
                         logs.append(f"❌ {name} W{week}: OAuth Download failed ({e})")
-
-            elif folder_id and api_key:
-                file_id = files_map.get(expected_filename) or files_map_lower.get(expected_filename.lower())
-                if file_id:
-                    temp_heic = f"temp_{index}_{week}.heic"
+                elif folder_id and api_key:
+                    file_id = files_map.get(photo_filename) or files_map_lower.get(photo_filename.lower())
+                    temp_file = f"temp_{index}_{week}_{photo_filename}"
                     logs.append(f"⏳ {name} W{week}: Downloading (API Key)...")
-                    success, error = download_public_file(file_id, api_key, temp_heic)
+                    success, error = download_public_file(file_id, api_key, temp_file)
                     if success:
-                        photo_path = temp_heic
+                        photo_path = temp_file
                     else:
                         logs.append(f"❌ {name} W{week}: Download failed ({error})")
-
-            elif root_path:
-                local_path = os.path.join(root_path, f"Week {week}", expected_filename)
-                if os.path.exists(local_path):
-                    photo_path = local_path
-                else:
-                    logs.append(f"❌ {name} W{week}: Not found locally.")
+                elif root_path:
+                    photo_path = os.path.join(root_path, f"Week {week}", photo_filename)
+            else:
+                logs.append(f"❌ {name} W{week}: Not found.")
 
             if photo_path:
+                ext = os.path.splitext(photo_path)[1].lower()
                 temp_jpg = f"temp_{index}_{week}.jpg"
-                logs.append(f"⚙️ {name} W{week}: Converting HEIC to JPG...")
-                if convert_heic_to_jpg(photo_path, temp_jpg):
-                    left, top, width, height = COORD_MAP[slide_index]
-                    slide.shapes.add_picture(temp_jpg, left, top, width, height)
-                    logs.append(f"✅ {name} W{week}: Added to slide.")
+
+                if ext == '.heic':
+                    logs.append(f"⚙️ {name} W{week}: Converting HEIC to JPG...")
+                    if convert_heic_to_jpg(photo_path, temp_jpg):
+                        final_photo = temp_jpg
+                    else:
+                        logs.append(f"❌ {name} W{week}: Conversion failed.")
+                        final_photo = None
+                elif ext in ['.jpg', '.jpeg']:
+                    final_photo = photo_path
+                elif ext == '.png':
+                    # python-pptx supports PNG, we can use it directly
+                    final_photo = photo_path
                 else:
-                    logs.append(f"❌ {name} W{week}: Conversion failed.")
+                    logs.append(f"❌ {name} W{week}: Unsupported format {ext}")
+                    final_photo = None
+
+                if final_photo:
+                    left, top, width, height = COORD_MAP[slide_index]
+                    slide.shapes.add_picture(final_photo, left, top, width, height)
+                    logs.append(f"✅ {name} W{week}: Added to slide.")
 
                 if os.path.exists(temp_jpg):
                     os.remove(temp_jpg)

@@ -72,7 +72,7 @@ def render_sidebar():
         global_theme = st.text_input("Global Theme Name", value=GLOBAL_THEME_DEFAULT)
         uploaded_template = st.file_uploader("Upload PPTX Template", type="pptx")
         st.divider()
-        st.warning("⚠️ **Strict Naming Required:** Photos must be named exactly `STUDENT NAME_W1.heic` etc.")
+        st.warning("⚠️ **Strict Naming Required:** Photos must be named exactly `STUDENT NAME_W1.heic`, `.jpg`, `.jpeg`, or `.png` etc.")
     return root_path, folder_id, api_key, drive_service, save_destination, global_theme, uploaded_template, num_weeks
 
 

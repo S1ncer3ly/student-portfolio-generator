@@ -7,7 +7,7 @@ A Streamlit application that creates individualized student portfolio presentati
 - Import student data from CSV or Excel.
 - Map student, class, section, and theme columns.
 - Check for each student's Week 1 through Week 4 photos.
-- Convert HEIC photos to JPEG for PowerPoint compatibility.
+- Convert HEIC photos to JPEG for PowerPoint compatibility. Support for .jpg, .jpeg, and .png images.
 - Generate one PowerPoint presentation per student.
 
 ## Workflow
@@ -18,7 +18,7 @@ A Streamlit application that creates individualized student portfolio presentati
 4. Scan the folders to verify the required photos.
 5. Generate the finished presentations in `Finished_PPTs`.
 
-Photos should follow the naming convention `STUDENT NAME_W1.heic` through `STUDENT NAME_W4.heic`.
+Photos should follow the naming convention `STUDENT NAME_W1.ext` through `STUDENT NAME_W4.ext` (where `.ext` can be `.heic`, `.jpg`, `.jpeg`, or `.png`).
 
 ## Project structure
 

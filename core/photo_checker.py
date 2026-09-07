@@ -50,8 +50,13 @@ def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe,
 
             all_found = True
             for week in range(1, num_weeks + 1):
-                expected_filename = f"{name}_W{week}.heic"
-                if expected_filename in files_map:
+                found = False
+                for ext in ['.heic', '.jpg', '.jpeg', '.png']:
+                    expected_filename = f"{name}_W{week}{ext}"
+                    if expected_filename in files_map:
+                        found = True
+                        break
+                if found:
                     status[f"Week {week}"] = "✅"
                 else:
                     all_found = False
@@ -70,9 +75,14 @@ def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe,
 
             all_found = True
             for week in range(1, num_weeks + 1):
-                expected_filename = f"{name}_W{week}.heic"
-                folder = os.path.join(root_path, f"Week {week}")
-                if os.path.exists(folder) and expected_filename in os.listdir(folder):
+                found = False
+                for ext in ['.heic', '.jpg', '.jpeg', '.png']:
+                    expected_filename = f"{name}_W{week}{ext}"
+                    folder = os.path.join(root_path, f"Week {week}")
+                    if os.path.exists(folder) and expected_filename in os.listdir(folder):
+                        found = True
+                        break
+                if found:
                     status[f"Week {week}"] = "✅"
                 else:
                     all_found = False
