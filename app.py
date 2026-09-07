@@ -67,7 +67,7 @@ def render_sidebar():
 
         st.divider()
         num_weeks_options = {4: "Video Production", 5: "Design Studio"}
-        num_weeks = st.radio("Course", options=list(num_weeks_options.keys()), format_func=lambda x: num_weeks_options[x], index=0, horizontal=True)
+        num_weeks = st.radio("Studio", options=list(num_weeks_options.keys()), format_func=lambda x: num_weeks_options[x], index=0)
         save_destination = st.radio("Save Final PPTs to:", ["Local Computer", "Google Drive"], index=0)
 
         global_theme = st.text_input("Global Theme Name", value=GLOBAL_THEME_DEFAULT)
