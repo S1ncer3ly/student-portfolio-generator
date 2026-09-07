@@ -1,6 +1,6 @@
-import streamlit.web.bootstrap as bootstrap
 import os
 import sys
+import subprocess
 from pathlib import Path
 
 def resolve_path(relative_path):
@@ -16,17 +16,15 @@ if __name__ == "__main__":
     # The app file we want to run
     app_path = resolve_path("app.py")
 
-    # We use the bootstrap module to launch streamlit programmatically
-    # This mimics 'streamlit run app.py'
-    sys.argv = [
-        "streamlit",
-        "run",
-        app_path,
-        "--global.developmentMode=false",
-    ]
-
+    # Use subprocess to launch streamlit. This is the most stable way to
+    # mimic 'streamlit run app.py' from within a Python script.
     try:
-        bootstrap.run()
+        subprocess.run([
+            "streamlit",
+            "run",
+            app_path,
+            "--global.developmentMode=false",
+        ], check=True)
     except Exception as e:
         with open("crash_log.txt", "w") as f:
             import traceback
