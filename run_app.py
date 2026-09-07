@@ -25,4 +25,10 @@ if __name__ == "__main__":
         "--global.developmentMode=false",
     ]
 
-    bootstrap.run()
+    try:
+        bootstrap.run()
+    except Exception as e:
+        with open("crash_log.txt", "w") as f:
+            import traceback
+            f.write(traceback.format_exc())
+
