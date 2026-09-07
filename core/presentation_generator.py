@@ -277,10 +277,10 @@ def render_generation(root_path, folder_id, api_key, drive_service, save_destina
     col1, col2 = st.columns([3, 1])
 
     with col1:
-        generate_btn = st.button("🔥 GENERATE ALL PRESENTATIONS", type="primary", use_container_width=True)
+        generate_btn = st.button("🔥 GENERATE ALL PRESENTATIONS", type="primary", width='stretch')
 
     with col2:
-        if st.button("🛑 STOP", use_container_width=True):
+        if st.button("🛑 STOP", width='stretch'):
             st.session_state.stop_generation = True
             st.rerun()
 

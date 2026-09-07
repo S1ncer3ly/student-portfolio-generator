@@ -68,7 +68,7 @@ with tab1:
                 df = None
             else:
                 st.write("### Preview of Student Data")
-                st.dataframe(df, use_container_width=True)
+                st.dataframe(df, width='stretch')
                 st.divider()
                 st.write("### Column Mapping")
                 col1, col2 = st.columns(2)
@@ -105,7 +105,7 @@ with tab2:
 
 with tab3:
     st.subheader("Step 3: Generate Presentations")
-    if st.button("🔥 GENERATE ALL PRESENTATIONS", type="primary", use_container_width=True):
+    if st.button("🔥 GENERATE ALL PRESENTATIONS", type="primary", width='stretch'):
         if not uploaded_template or not uploaded_data or not root_path or df is None:
             st.error("Missing requirements!")
         else:

@@ -28,7 +28,7 @@ def render_data_import():
         dataframe = load_student_data(uploaded_data)
         if dataframe is not None:
             st.write("### Preview of Student Data")
-            st.dataframe(dataframe, use_container_width=True)
+            st.dataframe(dataframe, width='stretch')
             st.divider()
             st.write("### Column Mapping")
             first_column, second_column = st.columns(2)
