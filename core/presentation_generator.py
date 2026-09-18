@@ -204,58 +204,43 @@ def process_single_student(index, row, mapping, root_path, folder_id, api_key, s
                 output_folder_id = create_drive_folder(drive_service, "Finished_PPTs", folder_id)
 
             if output_folder_id:
-                success, pptx_file_id = upload_drive_file(drive_service, temp_pptx, output_folder_id, filename)
-                if success:
-                    logs.append(f"✅ {name}: Uploaded successfully.")
-
-                    # --- VIDEO PRODUCTION STUDIO SPECIAL HANDLING ---
-                    if num_weeks == 4:
-                        logs.append(f"🎥 {name}: Processing Video Production additions... (num_weeks=4)")
-                        try:
-                            # 1. Convert PPTX to Google Slides
-                            conv_success, conv_id = upload_as_google_slides(drive_service, temp_pptx, output_folder_id, filename)
-                            if conv_success:
-                                logs.append(f"✅ {name}: Converted to Google Slides (ID: {conv_id}).")
-
-                                # Delete the original .pptx now that we have the Google Slides version
-                                del_success, del_err = delete_file_by_name(drive_service, output_folder_id, filename)
-                                if del_success:
-                                    logs.append(f"🗑️ {name}: Removed temporary .pptx file from Drive.")
-                                else:
-                                    logs.append(f"⚠️ {name}: Failed to remove .pptx from Drive ({del_err}).")
-
-                                # 2. Find the video file for Week 5
-                                logs.append(f"🔍 {name}: Searching for video {name}_W5...")
-                                video_id = find_video_file(drive_service, folder_id, name)
-                                if video_id:
-                                    logs.append(f"✅ {name}: Found video (ID: {video_id}). Inserting into slide 7 using COORD_MAP...")
-
-                                    # 3. Insert video into slide 7 using fixed image coordinates
-                                    slides_service = get_slides_service(drive_service)
-                                    slide_index = 7 # Slide 7
-                                    coords = COORD_MAP.get(slide_index)
-                                    if coords:
-                                        # Use the new fixed coordinate insertion method
-                                        success_ins, err_ins = insert_video_at_fixed_coords(slides_service, conv_id, slide_index - 1, video_id, coords)
-                                        if success_ins:
-                                            logs.append(f"✅ {name}: Video inserted into slide 7 using fixed coords successfully.")
-                                        else:
-                                            logs.append(f"❌ {name}: Failed to insert video into slide 7 using fixed coords. Error: {err_ins}")
+                # --- VIDEO PRODUCTION STUDIO SPECIAL HANDLING ---
+                if num_weeks == 4:
+                    logs.append(f"🎥 {name}: Processing Video Production additions... (num_weeks=4)")
+                    try:
+                        # 1. Upload directly as Google Slides (skipping the raw .pptx upload)
+                        conv_success, conv_id = upload_as_google_slides(drive_service, temp_pptx, output_folder_id, filename)
+                        if conv_success:
+                            logs.append(f"✅ {name}: Uploaded and converted to Google Slides (ID: {conv_id}).")
+                            # 2. Find the video file for Week 5
+                            logs.append(f"🔍 {name}: Searching for video {name}_W5...")
+                            video_id = find_video_file(drive_service, folder_id, name)
+                            if video_id:
+                                logs.append(f"✅ {name}: Found video (ID: {video_id}). Inserting into slide 7 using COORD_MAP...")
+                                slides_service = get_slides_service(drive_service)
+                                slide_index = 7 # Slide 7
+                                coords = COORD_MAP.get(slide_index)
+                                if coords:
+                                    success_ins, err_ins = insert_video_at_fixed_coords(slides_service, conv_id, slide_index - 1, video_id, coords)
+                                    if success_ins:
+                                        logs.append(f"✅ {name}: Video inserted into slide 7 using fixed coords successfully.")
                                     else:
-                                        logs.append(f"❌ {name}: Coordinates not found for slide 7 in COORD_MAP.")
+                                        logs.append(f"❌ {name}: Failed to insert video into slide 7 using fixed coords. Error: {err_ins}")
                                 else:
-                                    logs.append(f"❌ {name}: Video file not found in Week 5 folder or root (Expected {name}_W5).")
+                                    logs.append(f"❌ {name}: Coordinates not found for slide 7 in COORD_MAP.")
                             else:
-                                logs.append(f"❌ {name}: Failed to convert to Google Slides.")
-                        except Exception as ve:
-                            logs.append(f"💥 {name}: Video insertion error - {ve}")
-                    # ------------------------------------------------
-
+                                logs.append(f"❌ {name}: Video file not found in Week 5 folder or root (Expected {name}_W5).")
+                        else:
+                            logs.append(f"❌ {name}: Failed to upload as Google Slides.")
+                    except Exception as ve:
+                        logs.append(f"💥 {name}: Video insertion error - {ve}")
                 else:
-                    logs.append(f"❌ {name}: Upload failed ({err})")
-            else:
-                logs.append(f"❌ {name}: Could not find or create output folder.")
-
+                    # Normal handling for other studios: upload raw .pptx
+                    success, err = upload_drive_file(drive_service, temp_pptx, output_folder_id, filename)
+                    if success:
+                        logs.append(f"✅ {name}: Uploaded successfully.")
+                    else:
+                        logs.append(f"❌ {name}: Upload failed ({err})")
             if os.path.exists(temp_pptx):
                 os.remove(temp_pptx)
         else:
