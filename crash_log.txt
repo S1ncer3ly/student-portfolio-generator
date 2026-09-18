@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/Users/s1ncer3ly/Desktop/student_portfolio_generator/run_app.py", line 29, in <module>
+    bootstrap.run()
+    ~~~~~~~~~~~~~^^
+TypeError: run() missing 4 required positional arguments: 'main_script_path', 'is_hello', 'args', and 'flag_options'

@@ -9,7 +9,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
 # If modifying these scopes, delete the file token.json.
-SCOPES = ['https://www.googleapis.com/auth/drive'] # Changed to 'drive' (full access) to allow uploads
+SCOPES = ['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/presentations'] # Changed to 'drive' (full access) and 'presentations' to allow uploads and video insertion
 
 def get_drive_service(client_config=None):
     """
@@ -180,6 +180,27 @@ def upload_drive_file(service, local_path, folder_id, file_name):
     """
     file_metadata = {
         'name': file_name,
+        'parents': [folder_id]
+    }
+    try:
+        media = MediaFileUpload(local_path, resumable=True)
+        file = service.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields='id',
+            supportsAllDrives=True
+        ).execute()
+        return True, file.get('id')
+    except Exception as e:
+        return False, str(e)
+
+def upload_as_google_slides(service, local_path, folder_id, file_name):
+    """
+    Uploads a .pptx file and converts it to a Google Slides presentation.
+    """
+    file_metadata = {
+        'name': file_name.replace('.pptx', ''),
+        'mimeType': 'application/vnd.google-apps.presentation',
         'parents': [folder_id]
     }
     try:

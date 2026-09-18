@@ -13,6 +13,22 @@ def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe,
         st.info("Scanning Google Drive (OAuth) sub-folders for photos...")
         files_map = get_all_photos_from_weeks_oauth(drive_service, folder_id)
 
+        # Special handling for Video Production (num_weeks == 4)
+        # We need to check for W5 videos, which might be in the root or "Week 5" folder.
+        if num_weeks == 4:
+            try:
+                # List files in root folder to catch videos there
+                root_files = drive_service.files().list(
+                    q=f"'{folder_id}' in parents and trashed = false",
+                    fields="files(id, name)",
+                    supportsAllDrives=True,
+                    includeItemsFromAllDrives=True
+                ).execute()
+                for f in root_files.get('files', []):
+                    files_map[f['name']] = f['id']
+            except Exception as e:
+                st.error(f"Error scanning root folder for videos: {e}")
+
         if not files_map:
             st.warning("No files found on Drive. Please check your permissions.")
         else:
@@ -25,6 +41,15 @@ def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe,
         st.info("Scanning Google Drive (API Key) sub-folders for photos...")
         files_map = get_all_photos_from_weeks(folder_id, api_key)
 
+        if num_weeks == 4:
+            try:
+                # Use list_public_folder_files to get root files
+                from core.utils.google_drive import list_public_folder_files
+                root_files = list_public_folder_files(folder_id, api_key)
+                files_map.update(root_files)
+            except Exception as e:
+                st.error(f"Error scanning root folder for videos: {e}")
+
         if not files_map:
             st.warning("No files found on Drive. Please check your permissions.")
         else:
@@ -34,8 +59,6 @@ def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe,
 
     # Case 3: Local Path
     elif root_path:
-        # Local scan uses a different logic as it checks folders on the fly
-        # We handle it below
         files_map = None
     else:
         return []
@@ -45,10 +68,18 @@ def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe,
         for _, row in dataframe.iterrows():
             name = str(row[name_column]).strip()
             status = {"Student": name}
+
+            # Basic weeks (1 to num_weeks)
             status.update({f"Week {w}": "❌" for w in range(1, num_weeks + 1)})
+
+            # Special Video check for Video Production
+            if num_weeks == 4:
+                status["Week 5 (Video)"] = "❌"
+
             status["Overall"] = "🔴"
 
             all_found = True
+            # Check photos W1...W(num_weeks)
             for week in range(1, num_weeks + 1):
                 found = False
                 for ext in ['.heic', '.jpg', '.jpeg', '.png']:
@@ -60,6 +91,20 @@ def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe,
                     status[f"Week {week}"] = "✅"
                 else:
                     all_found = False
+
+            # Check video W5 for Video Production
+            if num_weeks == 4:
+                video_found = False
+                for filename in files_map.keys():
+                    fname_lower = filename.lower()
+                    if name.lower() in fname_lower and "_w5" in fname_lower and any(fname_lower.endswith(ext) for ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm']):
+                        video_found = True
+                        break
+                if video_found:
+                    status["Week 5 (Video)"] = "✅"
+                else:
+                    all_found = False
+
             status["Overall"] = "🟢" if all_found else "🟡"
             results.append(status)
         return results
@@ -71,9 +116,14 @@ def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe,
 
             status = {"Student": name}
             status.update({f"Week {w}": "❌" for w in range(1, num_weeks + 1)})
+
+            if num_weeks == 4:
+                status["Week 5 (Video)"] = "❌"
+
             status["Overall"] = "🔴"
 
             all_found = True
+            # Check photos W1...W(num_weeks)
             for week in range(1, num_weeks + 1):
                 found = False
                 for ext in ['.heic', '.jpg', '.jpeg', '.png']:
@@ -86,6 +136,26 @@ def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe,
                     status[f"Week {week}"] = "✅"
                 else:
                     all_found = False
+
+            # Check video W5 for Local
+            if num_weeks == 4:
+                video_found = False
+                # Check root and Week 5 folder
+                for folder_name in ["", "Week 5"]:
+                    folder_path = os.path.join(root_path, folder_name)
+                    if os.path.exists(folder_path):
+                        for filename in os.listdir(folder_path):
+                            fname_lower = filename.lower()
+                            if name.lower() in fname_lower and "_w5" in fname_lower and any(fname_lower.endswith(ext) for ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm']):
+                                video_found = True
+                                break
+                    if video_found: break
+
+                if video_found:
+                    status["Week 5 (Video)"] = "✅"
+                else:
+                    all_found = False
+
             status["Overall"] = "🟢" if all_found else "🟡"
             results.append(status)
         return results
