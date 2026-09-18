@@ -14,7 +14,8 @@ from core.utils.google_drive import (
     get_drive_service,
     create_drive_folder,
     upload_drive_file,
-    upload_as_google_slides
+    upload_as_google_slides,
+    delete_drive_file
 )
 from core.utils.google_slides import get_slides_service, insert_video_at_placeholder, insert_video_at_fixed_coords
 
@@ -202,7 +203,7 @@ def process_single_student(index, row, mapping, root_path, folder_id, api_key, s
                 output_folder_id = create_drive_folder(drive_service, "Finished_PPTs", folder_id)
 
             if output_folder_id:
-                success, err = upload_drive_file(drive_service, temp_pptx, output_folder_id, filename)
+                    success, pptx_file_id = upload_drive_file(drive_service, temp_pptx, output_folder_id, filename)
                 if success:
                     logs.append(f"✅ {name}: Uploaded successfully.")
 
@@ -214,6 +215,13 @@ def process_single_student(index, row, mapping, root_path, folder_id, api_key, s
                             conv_success, conv_id = upload_as_google_slides(drive_service, temp_pptx, output_folder_id, filename)
                             if conv_success:
                                 logs.append(f"✅ {name}: Converted to Google Slides (ID: {conv_id}).")
+
+                                # Delete the original .pptx now that we have the Google Slides version
+                                del_success, del_err = delete_drive_file(drive_service, pptx_file_id)
+                                if del_success:
+                                    logs.append(f"🗑️ {name}: Removed temporary .pptx file from Drive.")
+                                else:
+                                    logs.append(f"⚠️ {name}: Failed to remove .pptx from Drive ({del_err}).")
 
                                 # 2. Find the video file for Week 5
                                 logs.append(f"🔍 {name}: Searching for video {name}_W5...")
@@ -227,11 +235,11 @@ def process_single_student(index, row, mapping, root_path, folder_id, api_key, s
                                     coords = COORD_MAP.get(slide_index)
                                     if coords:
                                         # Use the new fixed coordinate insertion method
-                                        success, err = insert_video_at_fixed_coords(slides_service, conv_id, slide_index - 1, video_id, coords)
-                                        if success:
+                                        success_ins, err_ins = insert_video_at_fixed_coords(slides_service, conv_id, slide_index - 1, video_id, coords)
+                                        if success_ins:
                                             logs.append(f"✅ {name}: Video inserted into slide 7 using fixed coords successfully.")
                                         else:
-                                            logs.append(f"❌ {name}: Failed to insert video into slide 7 using fixed coords. Error: {err}")
+                                            logs.append(f"❌ {name}: Failed to insert video into slide 7 using fixed coords. Error: {err_ins}")
                                     else:
                                         logs.append(f"❌ {name}: Coordinates not found for slide 7 in COORD_MAP.")
                                 else:

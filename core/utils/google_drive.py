@@ -214,3 +214,13 @@ def upload_as_google_slides(service, local_path, folder_id, file_name):
         return True, file.get('id')
     except Exception as e:
         return False, str(e)
+
+def delete_drive_file(service, file_id):
+    """
+    Deletes a file from Google Drive.
+    """
+    try:
+        service.files().delete(fileId=file_id, supportsAllDrives=True).execute()
+        return True, None
+    except Exception as e:
+        return False, str(e)
