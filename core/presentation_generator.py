@@ -203,7 +203,7 @@ def process_single_student(index, row, mapping, root_path, folder_id, api_key, s
                 output_folder_id = create_drive_folder(drive_service, "Finished_PPTs", folder_id)
 
             if output_folder_id:
-                    success, pptx_file_id = upload_drive_file(drive_service, temp_pptx, output_folder_id, filename)
+                success, pptx_file_id = upload_drive_file(drive_service, temp_pptx, output_folder_id, filename)
                 if success:
                     logs.append(f"✅ {name}: Uploaded successfully.")
 
