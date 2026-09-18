@@ -224,3 +224,29 @@ def delete_drive_file(service, file_id):
         return True, None
     except Exception as e:
         return False, str(e)
+
+def delete_file_by_name(service, folder_id, file_name):
+    """
+    Finds a file by name in a specific folder and deletes it.
+    """
+    try:
+        # Search for the file by name in the specific folder
+        query = f"'{folder_id}' in parents and name = '{file_name}' and trashed = false"
+        results = service.files().list(
+            q=query,
+            fields="files(id, name)",
+            supportsAllDrives=True,
+            includeItemsFromAllDrives=True
+        ).execute()
+        files = results.get('files', [])
+
+        if not files:
+            return False, f"File {file_name} not found in folder."
+
+        # Delete all matches (usually just one)
+        for file in files:
+            service.files().delete(fileId=file['id'], supportsAllDrives=True).execute()
+
+        return True, None
+    except Exception as e:
+        return False, str(e)

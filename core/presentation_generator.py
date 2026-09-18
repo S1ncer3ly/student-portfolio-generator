@@ -15,7 +15,8 @@ from core.utils.google_drive import (
     create_drive_folder,
     upload_drive_file,
     upload_as_google_slides,
-    delete_drive_file
+    delete_drive_file,
+    delete_file_by_name
 )
 from core.utils.google_slides import get_slides_service, insert_video_at_placeholder, insert_video_at_fixed_coords
 
@@ -217,7 +218,7 @@ def process_single_student(index, row, mapping, root_path, folder_id, api_key, s
                                 logs.append(f"✅ {name}: Converted to Google Slides (ID: {conv_id}).")
 
                                 # Delete the original .pptx now that we have the Google Slides version
-                                del_success, del_err = delete_drive_file(drive_service, pptx_file_id)
+                                del_success, del_err = delete_file_by_name(drive_service, output_folder_id, filename)
                                 if del_success:
                                     logs.append(f"🗑️ {name}: Removed temporary .pptx file from Drive.")
                                 else:
