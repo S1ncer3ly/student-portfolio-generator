@@ -224,7 +224,6 @@ def delete_drive_file(service, file_id):
         service.files().delete(fileId=file_id, supportsAllDrives=True).execute()
         return True, None
     except Exception as e:
-        # If the file is already gone (404), treat it as a success.
         if "404" in str(e) or "notFound" in str(e):
             return True, None
         return False, str(e)
@@ -235,8 +234,9 @@ def delete_file_by_name(service, folder_id, file_name):
     Returns (True, None) on success or if files are already gone.
     """
     try:
-        # Search for the file by name in the specific folder
-        query = f"'{folder_id}' in parents and name = '{file_name}' and trashed = false"
+        # Use 'contains' instead of '=' for better matching with shared files
+        # Also ensure we search for the exact filename including extension
+        query = f"'{folder_id}' in parents and name contains '{file_name}' and trashed = false"
         results = service.files().list(
             q=query,
             fields="files(id, name)",
@@ -246,16 +246,18 @@ def delete_file_by_name(service, folder_id, file_name):
         files = results.get('files', [])
 
         if not files:
-            # If no file is found, it's already gone - treat as success
             return True, None
 
-        # Delete all matches (usually just one)
+        deleted_count = 0
         for file in files:
-            try:
-                service.files().delete(fileId=file['id'], supportsAllDrives=True).execute()
-            except Exception as e:
-                if "404" not in str(e) and "notFound" not in str(e):
-                    raise e
+            # Verify it's an exact match before deleting to avoid deleting similar names
+            if file['name'] == file_name:
+                try:
+                    service.files().delete(fileId=file['id'], supportsAllDrives=True).execute()
+                    deleted_count += 1
+                except Exception as e:
+                    if "404" not in str(e) and "notFound" not in str(e):
+                        continue # Skip 404s, but keep going for other matches
 
         return True, None
     except Exception as e:
