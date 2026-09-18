@@ -218,16 +218,21 @@ def upload_as_google_slides(service, local_path, folder_id, file_name):
 def delete_drive_file(service, file_id):
     """
     Deletes a file from Google Drive.
+    Returns (True, None) on success or if file is already gone (404).
     """
     try:
         service.files().delete(fileId=file_id, supportsAllDrives=True).execute()
         return True, None
     except Exception as e:
+        # If the file is already gone (404), treat it as a success.
+        if "404" in str(e) or "notFound" in str(e):
+            return True, None
         return False, str(e)
 
 def delete_file_by_name(service, folder_id, file_name):
     """
     Finds a file by name in a specific folder and deletes it.
+    Returns (True, None) on success or if files are already gone.
     """
     try:
         # Search for the file by name in the specific folder
@@ -241,12 +246,19 @@ def delete_file_by_name(service, folder_id, file_name):
         files = results.get('files', [])
 
         if not files:
-            return False, f"File {file_name} not found in folder."
+            # If no file is found, it's already gone - treat as success
+            return True, None
 
         # Delete all matches (usually just one)
         for file in files:
-            service.files().delete(fileId=file['id'], supportsAllDrives=True).execute()
+            try:
+                service.files().delete(fileId=file['id'], supportsAllDrives=True).execute()
+            except Exception as e:
+                if "404" not in str(e) and "notFound" not in str(e):
+                    raise e
 
         return True, None
     except Exception as e:
+        if "404" in str(e) or "notFound" in str(e):
+            return True, None
         return False, str(e)
