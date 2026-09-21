@@ -74,7 +74,7 @@ def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe,
 
             # Special Video check for Video Production
             if num_weeks == 4:
-                status["Week 5 (Video)"] = "❌"
+                status["final video"] = "❌"
 
             status["Overall"] = "🔴"
 
@@ -101,7 +101,7 @@ def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe,
                         video_found = True
                         break
                 if video_found:
-                    status["Week 5 (Video)"] = "✅"
+                    status["final video"] = "✅"
                 else:
                     all_found = False
 
@@ -118,7 +118,7 @@ def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe,
             status.update({f"Week {w}": "❌" for w in range(1, num_weeks + 1)})
 
             if num_weeks == 4:
-                status["Week 5 (Video)"] = "❌"
+                status["Final Video"] = "❌"
 
             status["Overall"] = "🔴"
 
@@ -152,7 +152,7 @@ def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe,
                     if video_found: break
 
                 if video_found:
-                    status["Week 5 (Video)"] = "✅"
+                    status["final video"] = "✅"
                 else:
                     all_found = False
 
@@ -163,7 +163,7 @@ def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe,
     return []
 
 def render_photo_check(root_path, folder_id, api_key, drive_service, uploaded_data, dataframe, name_column, num_weeks):
-    st.subheader("Step 2: Verify Photos")
+    st.subheader("Step 2: Verify Photos and Videos")
 
     if "photo_check_results" not in st.session_state:
         st.session_state.photo_check_results = None

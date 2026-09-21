@@ -82,7 +82,7 @@ with tab1:
             st.error(f"An error occurred: {e}")
 
 with tab2:
-    st.subheader("Step 2: Verify Photos")
+    st.subheader("Step 2: Verify Photos and Videos")
     if st.button("🔍 Scan Folders for Photos"):
         if not root_path or uploaded_data is None or df is None:
             st.warning("Please provide the Root Folder Path and upload a valid Student List first!")
