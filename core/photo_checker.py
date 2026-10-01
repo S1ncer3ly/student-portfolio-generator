@@ -75,6 +75,7 @@ def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe,
             # Special Video check for Video Production
             if num_weeks == 4:
                 status["final video"] = "❌"
+                status["Self Reflection Video"] = "❌"
 
             status["Overall"] = "🔴"
 
@@ -102,6 +103,7 @@ def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe,
                         break
                 if video_found:
                     status["final video"] = "✅"
+                    status["Self Reflection Video"] = "✅"
                 else:
                     all_found = False
 
@@ -118,7 +120,8 @@ def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe,
             status.update({f"Week {w}": "❌" for w in range(1, num_weeks + 1)})
 
             if num_weeks == 4:
-                status["Final Video"] = "❌"
+                status["final video"] = "❌"
+                status["Self Reflection Video"] = "❌"
 
             status["Overall"] = "🔴"
 
@@ -153,6 +156,7 @@ def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe,
 
                 if video_found:
                     status["final video"] = "✅"
+                    status["Self Reflection Video"] = "✅"
                 else:
                     all_found = False
 
@@ -163,7 +167,7 @@ def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe,
     return []
 
 def render_photo_check(root_path, folder_id, api_key, drive_service, uploaded_data, dataframe, name_column, num_weeks):
-    st.subheader("Step 2: Verify Photos and Videos")
+    st.subheader("Step 2: Pre-Flight Check")
 
     if "photo_check_results" not in st.session_state:
         st.session_state.photo_check_results = None
@@ -182,8 +186,8 @@ def render_photo_check(root_path, folder_id, api_key, drive_service, uploaded_da
 
         csv = results_df.to_csv(index=False).encode('utf-8')
         st.download_button(
-            label="📥 Download Pre-Flight Report (CSV)",
+            label="📥 Download Self Reflection Pre-Flight Report (CSV)",
             data=csv,
-            file_name="pre_flight_check_report.csv",
+            file_name="self_reflection_pre_flight_check_report.csv",
             mime="text/csv",
         )
