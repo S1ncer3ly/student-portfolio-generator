@@ -198,60 +198,179 @@ def process_single_student(index, row, mapping, root_path, folder_id, api_key, s
                 output_folder_id = create_drive_folder(drive_service, "Finished_PPTs", folder_id)
 
             if output_folder_id:
-                # --- VIDEO PRODUCTION STUDIO SPECIAL HANDLING ---
-                if num_weeks == 4:
-                    logs.append(f"🎥 {name}: Processing Video Production additions... (num_weeks=4)")
-                    try:
-                        # 1. Upload directly as Google Slides (skipping the raw .pptx upload)
-                        conv_success, conv_id = upload_as_google_slides(drive_service, temp_pptx, output_folder_id, filename)
-                        if conv_success:
-                            logs.append(f"✅ {name}: Uploaded and converted to Google Slides (ID: {conv_id}).")
+            # Ensure num_weeks is an integer for the comparison
+                try:
+                    n_weeks = int(num_weeks)
+                except (ValueError, TypeError):
+                    n_weeks = num_weeks
 
-                            # --- Video 1: Week 5 ---
-                            logs.append(f"🔍 {name}: Searching for video {name}_W5...")
-                            video_id_w5 = find_video_file(drive_service, folder_id, name, pattern="_W5")
+            # --- VIDEO PRODUCTION & DESIGN STUDIO SPECIAL HANDLING ---
+            if n_weeks in [4, 5]:
+                logs.append(
+                    f"🎥 {name}: Processing special studio additions... "
+                    f"(num_weeks={n_weeks})"
+                )
+
+                try:
+                    # Upload directly as Google Slides
+                    conv_success, conv_id = upload_as_google_slides(
+                        drive_service,
+                        temp_pptx,
+                        output_folder_id,
+                        filename
+                    )
+
+                    if conv_success:
+                        logs.append(
+                            f"✅ {name}: Uploaded and converted to Google Slides "
+                            f"(ID: {conv_id})."
+                        )
+
+                        slides_service = get_slides_service(drive_service)
+
+                        # --- Video 1: Week 5 ---
+                        if n_weeks == 4:
+                            logs.append(
+                                f"🔍 {name}: Searching for video {name}_W5..."
+                            )
+
+                            video_id_w5 = find_video_file(
+                                drive_service,
+                                folder_id,
+                                name,
+                                pattern="_W5"
+                            )
+
                             if video_id_w5:
-                                logs.append(f"✅ {name}: Found Week 5 video (ID: {video_id_w5}). Inserting into slide 7 using COORD_MAP...")
-                                slides_service = get_slides_service(drive_service)
+                                logs.append(
+                                    f"✅ {name}: Found Week 5 video "
+                                    f"(ID: {video_id_w5}). "
+                                    f"Inserting into slide 7..."
+                                )
+
                                 slide_index_w5 = 7
                                 coords_w5 = COORD_MAP.get(slide_index_w5)
-                                if coords_w5:
-                                    success_ins, err_ins = insert_video_at_fixed_coords(slides_service, conv_id, slide_index_w5 - 1, video_id_w5, coords_w5)
-                                    if success_ins:
-                                        logs.append(f"✅ {name}: Week 5 video inserted into slide 7 successfully.")
-                                    else:
-                                        logs.append(f"❌ {name}: Failed to insert Week 5 video into slide 7. Error: {err_ins}")
-                                else:
-                                    logs.append(f"❌ {name}: Coordinates not found for slide 7 in COORD_MAP.")
-                            else:
-                                logs.append(f"❌ {name}: Week 5 video file not found (Expected {name}_W5).")
 
-                            # --- Video 2: Self Reflection ---
-                            logs.append(f"🔍 {name}: Searching for self-reflection video {name}_S1...")
-                            video_id_s1 = find_video_file(drive_service, folder_id, name, pattern="_S1", folder_name_keywords=["Self Reflection"])
-                            if video_id_s1:
-                                logs.append(f"✅ {name}: Found self-reflection video (ID: {video_id_s1}). Inserting into slide 8 using fixed coords...")
-                                slide_index_s1 = 8
-                                # Coordinates from DHRUV_RAJ.pptx analysis: (2979000, 1602300, 12330000, 7082400)
-                                coords_s1 = (2979000, 1602300, 12330000, 7082400)
-                                success_ins_s1, err_ins_s1 = insert_video_at_fixed_coords(slides_service, conv_id, slide_index_s1 - 1, video_id_s1, coords_s1)
-                                if success_ins_s1:
-                                    logs.append(f"✅ {name}: Self-reflection video inserted into slide 8 successfully.")
+                                if coords_w5:
+                                    success_ins, err_ins = (
+                                        insert_video_at_fixed_coords(
+                                            slides_service,
+                                            conv_id,
+                                            slide_index_w5 - 1,
+                                            video_id_w5,
+                                            coords_w5
+                                        )
+                                    )
+
+                                    if success_ins:
+                                        logs.append(
+                                            f"✅ {name}: Week 5 video inserted "
+                                            f"into slide 7 successfully."
+                                        )
+                                    else:
+                                        logs.append(
+                                            f"❌ {name}: Failed to insert "
+                                            f"Week 5 video into slide 7. "
+                                            f"Error: {err_ins}"
+                                        )
                                 else:
-                                    logs.append(f"❌ {name}: Failed to insert self-reflection video into slide 8. Error: {err_ins_s1}")
+                                    logs.append(
+                                        f"❌ {name}: Coordinates not found "
+                                        f"for slide 7 in COORD_MAP."
+                                    )
                             else:
-                                logs.append(f"❌ {name}: Self-reflection video file not found in 'Self Reflection' folder (Expected {name}_S1).")
+                                logs.append(
+                                    f"❌ {name}: Week 5 video file not found "
+                                    f"(Expected {name}_W5)."
+                                )
+
+                        # --- Video 2: Self Reflection ---
+                        logs.append(
+                            f"🔍 {name}: Searching for self-reflection "
+                            f"video {name}_S1..."
+                        )
+
+                        video_id_s1 = find_video_file(
+                            drive_service,
+                            folder_id,
+                            name,
+                            pattern="_S1",
+                            folder_name_keywords=["Self Reflection"]
+                        )
+
+                        if video_id_s1:
+                            logs.append(
+                                f"✅ {name}: Found self-reflection video "
+                                f"(ID: {video_id_s1}). "
+                                f"Inserting into slide 8..."
+                            )
+
+                            slide_index_s1 = 8
+
+                            coords_s1 = (
+                                2979000,
+                                1602300,
+                                12330000,
+                                7082400
+                            )
+
+                            success_ins_s1, err_ins_s1 = (
+                                insert_video_at_fixed_coords(
+                                    slides_service,
+                                    conv_id,
+                                    slide_index_s1 - 1,
+                                    video_id_s1,
+                                    coords_s1
+                                )
+                            )
+
+                            if success_ins_s1:
+                                logs.append(
+                                    f"✅ {name}: Self-reflection video "
+                                    f"inserted into slide 8 successfully."
+                                )
+                            else:
+                                logs.append(
+                                    f"❌ {name}: Failed to insert "
+                                    f"self-reflection video into slide 8. "
+                                    f"Error: {err_ins_s1}"
+                                )
                         else:
-                            logs.append(f"❌ {name}: Failed to upload as Google Slides.")
-                    except Exception as ve:
-                        logs.append(f"💥 {name}: Video insertion error - {ve}")
-                else:
-                    # Normal handling for other studios: upload raw .pptx
-                    success, err = upload_drive_file(drive_service, temp_pptx, output_folder_id, filename)
-                    if success:
-                        logs.append(f"✅ {name}: Uploaded successfully.")
+                            logs.append(
+                                f"❌ {name}: Self-reflection video file "
+                                f"not found in 'Self Reflection' folder "
+                                f"(Expected {name}_S1)."
+                            )
+
                     else:
-                        logs.append(f"❌ {name}: Upload failed ({err})")
+                        logs.append(
+                            f"❌ {name}: Failed to upload as Google Slides."
+                        )
+
+                except Exception as ve:
+                    logs.append(
+                        f"💥 {name}: Video insertion error - {ve}"
+                    )
+
+            else:
+                # Normal handling for other studios:
+                # upload raw .pptx
+                success, err = upload_drive_file(
+                    drive_service,
+                    temp_pptx,
+                    output_folder_id,
+                    filename
+                )
+
+                if success:
+                    logs.append(
+                        f"✅ {name}: Uploaded successfully."
+                    )
+                else:
+                    logs.append(
+                        f"❌ {name}: Upload failed ({err})"
+                    )
+
             if os.path.exists(temp_pptx):
                 os.remove(temp_pptx)
         else:
