@@ -72,8 +72,8 @@ def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe,
             # Basic weeks (1 to num_weeks)
             status.update({f"Week {w}": "❌" for w in range(1, num_weeks + 1)})
 
-            # Special Video check for Video Production
-            if num_weeks == 4:
+            # Special Video check for Video Production or Design Studio
+            if num_weeks in [4, 5]:
                 status["final video"] = "❌"
                 status["Self Reflection"] = "❌"
 
@@ -93,8 +93,8 @@ def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe,
                 else:
                     all_found = False
 
-            # Check video W5 for Video Production
-            if num_weeks == 4:
+            # Check video W5 for Video Production or Design Studio
+            if num_weeks in [4, 5]:
                 video_found = False
                 for filename in files_map.keys():
                     fname_lower = filename.lower()
@@ -167,7 +167,7 @@ def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe,
                     all_found = False
 
             # Check video W5 for Local
-            if num_weeks == 4:
+            if num_weeks in [4, 5]:
                 video_found = False
                 # Check root and Week 5 folder
                 for folder_name in ["", "Week 5"]:
