@@ -74,7 +74,8 @@ def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe,
 
             # Special Video check for Video Production or Design Studio
             if num_weeks in [4, 5]:
-                status["final video"] = "❌"
+                if num_weeks == 4:
+                    status["final video"] = "❌"
                 status["Self Reflection"] = "❌"
 
             status["Overall"] = "🔴"
@@ -95,16 +96,17 @@ def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe,
 
             # Check video W5 for Video Production or Design Studio
             if num_weeks in [4, 5]:
-                video_found = False
-                for filename in files_map.keys():
-                    fname_lower = filename.lower()
-                    if name.lower() in fname_lower and "_w5" in fname_lower and any(fname_lower.endswith(ext) for ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm']):
-                        video_found = True
-                        break
-                if video_found:
-                    status["final video"] = "✅"
-                else:
-                    all_found = False
+                if num_weeks == 4:
+                    video_found = False
+                    for filename in files_map.keys():
+                        fname_lower = filename.lower()
+                        if name.lower() in fname_lower and "_w5" in fname_lower and any(fname_lower.endswith(ext) for ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm']):
+                            video_found = True
+                            break
+                    if video_found:
+                        status["final video"] = "✅"
+                    else:
+                        all_found = False
 
                 # Check Self Reflection Video (_S1)
                 self_ref_found = False
@@ -148,6 +150,8 @@ def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe,
             if num_weeks == 4:
                 status["final video"] = "❌"
                 status["Self Reflection"] = "❌"
+            elif num_weeks == 5:
+                status["Self Reflection"] = "❌"
 
             status["Overall"] = "🔴"
 
@@ -168,22 +172,23 @@ def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe,
 
             # Check video W5 for Local
             if num_weeks in [4, 5]:
-                video_found = False
-                # Check root and Week 5 folder
-                for folder_name in ["", "Week 5"]:
-                    folder_path = os.path.join(root_path, folder_name)
-                    if os.path.exists(folder_path):
-                        for filename in os.listdir(folder_path):
-                            fname_lower = filename.lower()
-                            if name.lower() in fname_lower and "_w5" in fname_lower and any(fname_lower.endswith(ext) for ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm']):
-                                video_found = True
-                                break
-                    if video_found: break
+                if num_weeks == 4:
+                    video_found = False
+                    # Check root and Week 5 folder
+                    for folder_name in ["", "Week 5"]:
+                        folder_path = os.path.join(root_path, folder_name)
+                        if os.path.exists(folder_path):
+                            for filename in os.listdir(folder_path):
+                                fname_lower = filename.lower()
+                                if name.lower() in fname_lower and "_w5" in fname_lower and any(fname_lower.endswith(ext) for ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm']):
+                                    video_found = True
+                                    break
+                        if video_found: break
 
-                if video_found:
-                    status["final video"] = "✅"
-                else:
-                    all_found = False
+                    if video_found:
+                        status["final video"] = "✅"
+                    else:
+                        all_found = False
 
                 # Check Self Reflection Video (_S1) for Local
                 self_ref_found = False
