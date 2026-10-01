@@ -26,42 +26,36 @@ def remove_photo_placeholders(slide):
             element = shape._element
             element.getparent().remove(element)
 
-def find_video_file(drive_service, folder_id, student_name):
+def find_video_file(drive_service, folder_id, student_name, pattern="_W5", folder_name_keywords=["Week 5", "Week5"]):
     """
-    Searches for a video file in the 'Week 5' folder with prefix 'Student Name_W5'.
+    Searches for a video file in a specific folder with a given pattern.
     Returns the file_id if found, else None.
     """
     try:
-        # 1. Find the 'Week 5' or 'Week5' folder
-        # We use a query that is more flexible for "Week 5" vs "Week5"
-        query = f"'{folder_id}' in parents and (name contains 'Week 5' or name contains 'Week5') and mimeType='application/vnd.google-apps.folder' and trashed = false"
+        # 1. Find the target folder
+        query = f"'{folder_id}' in parents and ({' or '.join([f'name contains \"{kw}\"' for kw in folder_name_keywords])}) and mimeType='application/vnd.google-apps.folder' and trashed = false"
         results = drive_service.files().list(q=query, fields="files(id, name)", supportsAllDrives=True, includeItemsFromAllDrives=True).execute()
         folders = results.get('files', [])
 
-        # If no specific "Week 5" folder is found, the videos might be in the root folder_id itself
-        # based on the user's provided file list.
-        week5_folder_id = None
+        target_folder_id = None
         if folders:
-            week5_folder_id = folders[0]['id']
+            target_folder_id = folders[0]['id']
         else:
             # Fallback: search in the root folder_id provided
-            week5_folder_id = folder_id
+            target_folder_id = folder_id
 
         # 2. Find the video file
-        # Look for files starting with 'Student Name_W5' (case-insensitive search is handled by Drive API for 'contains')
-        video_query = f"'{week5_folder_id}' in parents and name contains '{student_name}_W5' and trashed = false"
+        video_query = f"'{target_folder_id}' in parents and name contains '{student_name}{pattern}' and trashed = false"
         results = drive_service.files().list(q=video_query, fields="files(id, name)", supportsAllDrives=True, includeItemsFromAllDrives=True).execute()
         files = results.get('files', [])
 
         for file in files:
             name = file['name'].lower()
-            # Ensure it's a video file
             if any(name.endswith(ext) for ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm']):
                 return file['id']
 
         return None
     except Exception as e:
-        # We'll handle logging in the calling function
         return None
 
 def process_single_student(index, row, mapping, root_path, folder_id, api_key, save_destination, global_theme, template_path, files_map, files_map_lower, stop_event, num_weeks, client_config):
@@ -212,24 +206,41 @@ def process_single_student(index, row, mapping, root_path, folder_id, api_key, s
                         conv_success, conv_id = upload_as_google_slides(drive_service, temp_pptx, output_folder_id, filename)
                         if conv_success:
                             logs.append(f"✅ {name}: Uploaded and converted to Google Slides (ID: {conv_id}).")
-                            # 2. Find the video file for Week 5
+
+                            # --- Video 1: Week 5 ---
                             logs.append(f"🔍 {name}: Searching for video {name}_W5...")
-                            video_id = find_video_file(drive_service, folder_id, name)
-                            if video_id:
-                                logs.append(f"✅ {name}: Found video (ID: {video_id}). Inserting into slide 7 using COORD_MAP...")
+                            video_id_w5 = find_video_file(drive_service, folder_id, name, pattern="_W5")
+                            if video_id_w5:
+                                logs.append(f"✅ {name}: Found Week 5 video (ID: {video_id_w5}). Inserting into slide 7 using COORD_MAP...")
                                 slides_service = get_slides_service(drive_service)
-                                slide_index = 7 # Slide 7
-                                coords = COORD_MAP.get(slide_index)
-                                if coords:
-                                    success_ins, err_ins = insert_video_at_fixed_coords(slides_service, conv_id, slide_index - 1, video_id, coords)
+                                slide_index_w5 = 7
+                                coords_w5 = COORD_MAP.get(slide_index_w5)
+                                if coords_w5:
+                                    success_ins, err_ins = insert_video_at_fixed_coords(slides_service, conv_id, slide_index_w5 - 1, video_id_w5, coords_w5)
                                     if success_ins:
-                                        logs.append(f"✅ {name}: Video inserted into slide 7 using fixed coords successfully.")
+                                        logs.append(f"✅ {name}: Week 5 video inserted into slide 7 successfully.")
                                     else:
-                                        logs.append(f"❌ {name}: Failed to insert video into slide 7 using fixed coords. Error: {err_ins}")
+                                        logs.append(f"❌ {name}: Failed to insert Week 5 video into slide 7. Error: {err_ins}")
                                 else:
                                     logs.append(f"❌ {name}: Coordinates not found for slide 7 in COORD_MAP.")
                             else:
-                                logs.append(f"❌ {name}: Video file not found in Week 5 folder or root (Expected {name}_W5).")
+                                logs.append(f"❌ {name}: Week 5 video file not found (Expected {name}_W5).")
+
+                            # --- Video 2: Self Reflection ---
+                            logs.append(f"🔍 {name}: Searching for self-reflection video {name}_S1...")
+                            video_id_s1 = find_video_file(drive_service, folder_id, name, pattern="_S1", folder_name_keywords=["Self Reflection"])
+                            if video_id_s1:
+                                logs.append(f"✅ {name}: Found self-reflection video (ID: {video_id_s1}). Inserting into slide 8 using fixed coords...")
+                                slide_index_s1 = 8
+                                # Coordinates from DHRUV_RAJ.pptx analysis: (2979000, 1602300, 12330000, 7082400)
+                                coords_s1 = (2979000, 1602300, 12330000, 7082400)
+                                success_ins_s1, err_ins_s1 = insert_video_at_fixed_coords(slides_service, conv_id, slide_index_s1 - 1, video_id_s1, coords_s1)
+                                if success_ins_s1:
+                                    logs.append(f"✅ {name}: Self-reflection video inserted into slide 8 successfully.")
+                                else:
+                                    logs.append(f"❌ {name}: Failed to insert self-reflection video into slide 8. Error: {err_ins_s1}")
+                            else:
+                                logs.append(f"❌ {name}: Self-reflection video file not found in 'Self Reflection' folder (Expected {name}_S1).")
                         else:
                             logs.append(f"❌ {name}: Failed to upload as Google Slides.")
                     except Exception as ve:
