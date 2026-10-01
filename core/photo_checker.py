@@ -75,7 +75,7 @@ def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe,
             # Special Video check for Video Production
             if num_weeks == 4:
                 status["final video"] = "❌"
-                status["Self Reflection Video"] = "❌"
+                status["Self Reflection"] = "❌"
 
             status["Overall"] = "🔴"
 
@@ -103,7 +103,33 @@ def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe,
                         break
                 if video_found:
                     status["final video"] = "✅"
-                    status["Self Reflection Video"] = "✅"
+                else:
+                    all_found = False
+
+                # Check Self Reflection Video (_S1)
+                self_ref_found = False
+                try:
+                    # Use drive_service to find "Self Reflection" folder and search for _S1 file
+                    folder_query = f"'{folder_id}' in parents and name contains 'Self Reflection' and mimeType='application/vnd.google-apps.folder' and trashed = false"
+                    folder_results = drive_service.files().list(q=folder_query, fields="files(id)", supportsAllDrives=True, includeItemsFromAllDrives=True).execute()
+                    folders = folder_results.get('files', [])
+
+                    target_folder_id = folders[0]['id'] if folders else folder_id
+
+                    video_query = f"'{target_folder_id}' in parents and name contains '{name}_S1' and trashed = false"
+                    video_results = drive_service.files().list(q=video_query, fields="files(id, name)", supportsAllDrives=True, includeItemsFromAllDrives=True).execute()
+                    files = video_results.get('files', [])
+
+                    for file in files:
+                        fname_lower = file['name'].lower()
+                        if any(fname_lower.endswith(ext) for ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm']):
+                            self_ref_found = True
+                            break
+                except Exception:
+                    pass
+
+                if self_ref_found:
+                    status["Self Reflection"] = "✅"
                 else:
                     all_found = False
 
@@ -121,7 +147,7 @@ def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe,
 
             if num_weeks == 4:
                 status["final video"] = "❌"
-                status["Self Reflection Video"] = "❌"
+                status["Self Reflection"] = "❌"
 
             status["Overall"] = "🔴"
 
@@ -156,7 +182,21 @@ def scan_student_photos(root_path, folder_id, api_key, drive_service, dataframe,
 
                 if video_found:
                     status["final video"] = "✅"
-                    status["Self Reflection Video"] = "✅"
+                else:
+                    all_found = False
+
+                # Check Self Reflection Video (_S1) for Local
+                self_ref_found = False
+                self_ref_folder = os.path.join(root_path, "Self Reflection")
+                if os.path.exists(self_ref_folder):
+                    for filename in os.listdir(self_ref_folder):
+                        fname_lower = filename.lower()
+                        if name.lower() in fname_lower and "_s1" in fname_lower and any(fname_lower.endswith(ext) for ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm']):
+                            self_ref_found = True
+                            break
+
+                if self_ref_found:
+                    status["Self Reflection"] = "✅"
                 else:
                     all_found = False
 
